@@ -1,0 +1,13 @@
+{
+  "domain": "intelliclima",
+  "name": "Intelliclima",
+  "codeowners": [
+    "@ruizmarc"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/ruizmarc/homebridge-intelliclima",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/ruizmarc/homebridge-intelliclima/issues",
+  "version": "0.1.0",
+  "requirements": []
+}

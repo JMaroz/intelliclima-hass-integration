@@ -1,4 +1,4 @@
-"""Adds config flow for Blueprint."""
+"""Config flow for Intelliclima."""
 
 from __future__ import annotations
 
@@ -10,16 +10,16 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from slugify import slugify
 
 from .api import (
-    IntegrationBlueprintApiClient,
-    IntegrationBlueprintApiClientAuthenticationError,
-    IntegrationBlueprintApiClientCommunicationError,
-    IntegrationBlueprintApiClientError,
+    IntelliclimaApiClient,
+    IntelliclimaApiClientAuthenticationError,
+    IntelliclimaApiClientCommunicationError,
+    IntelliclimaApiClientError,
 )
-from .const import DOMAIN, LOGGER
+from .const import CONF_BASE_URL, DEFAULT_BASE_URL, DOMAIN, LOGGER
 
 
-class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for Blueprint."""
+class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+    """Config flow for Intelliclima."""
 
     VERSION = 1
 
@@ -28,29 +28,26 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle a flow initialized by the user."""
-        _errors = {}
+        errors: dict[str, str] = {}
+
         if user_input is not None:
             try:
                 await self._test_credentials(
                     username=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD],
+                    base_url=user_input[CONF_BASE_URL],
                 )
-            except IntegrationBlueprintApiClientAuthenticationError as exception:
+            except IntelliclimaApiClientAuthenticationError as exception:
                 LOGGER.warning(exception)
-                _errors["base"] = "auth"
-            except IntegrationBlueprintApiClientCommunicationError as exception:
+                errors["base"] = "auth"
+            except IntelliclimaApiClientCommunicationError as exception:
                 LOGGER.error(exception)
-                _errors["base"] = "connection"
-            except IntegrationBlueprintApiClientError as exception:
+                errors["base"] = "connection"
+            except IntelliclimaApiClientError as exception:
                 LOGGER.exception(exception)
-                _errors["base"] = "unknown"
+                errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(
-                    ## Do NOT use this in production code
-                    ## The unique_id should never be something that can change
-                    ## https://developers.home-assistant.io/docs/config_entries_config_flow_handler#unique-ids
-                    unique_id=slugify(user_input[CONF_USERNAME])
-                )
+                await self.async_set_unique_id(slugify(user_input[CONF_USERNAME]))
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=user_input[CONF_USERNAME],
@@ -61,10 +58,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_USERNAME,
-                        default=(user_input or {}).get(CONF_USERNAME, vol.UNDEFINED),
-                    ): selector.TextSelector(
+                    vol.Required(CONF_USERNAME): selector.TextSelector(
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.TEXT,
                         ),
@@ -74,16 +68,27 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.PASSWORD,
                         ),
                     ),
+                    vol.Required(
+                        CONF_BASE_URL,
+                        default=DEFAULT_BASE_URL,
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.URL,
+                        ),
+                    ),
                 },
             ),
-            errors=_errors,
+            errors=errors,
         )
 
-    async def _test_credentials(self, username: str, password: str) -> None:
+    async def _test_credentials(
+        self, username: str, password: str, base_url: str
+    ) -> None:
         """Validate credentials."""
-        client = IntegrationBlueprintApiClient(
+        client = IntelliclimaApiClient(
             username=username,
             password=password,
+            base_url=base_url,
             session=async_create_clientsession(self.hass),
         )
-        await client.async_get_data()
+        await client.async_validate_credentials()
