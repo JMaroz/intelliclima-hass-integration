@@ -133,3 +133,13 @@ logger:
 ```
 
 Then restart Home Assistant.
+
+
+### Deep API debug (cURL + raw response)
+
+When `custom_components.intelliclima: debug` is enabled, the integration now logs:
+- a cURL-equivalent command for each API request
+- raw HTTP response status and body
+- parsed raw payloads for login, house list, and device fetch
+
+> ⚠️ These logs can contain sensitive values (token, serial, device/account data). Use only for troubleshooting and disable debug logs afterwards.

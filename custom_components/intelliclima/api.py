@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 import socket
 from contextlib import suppress
 from typing import Any
@@ -59,6 +60,33 @@ def _raise_unexpected_payload_error() -> None:
     """Raise normalized unexpected payload error."""
     msg = "Unexpected payload format from Intelliclima API"
     raise IntelliclimaApiClientError(msg)
+
+
+def _to_curl_command(
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    data: dict[str, Any] | None,
+) -> str:
+    """Build a curl representation for debug logging."""
+    parts: list[str] = ["curl", "-i", "-X", shlex.quote(method.upper())]
+    for key, value in headers.items():
+        parts.extend(["-H", shlex.quote(f"{key}: {value}")])
+    if data is not None:
+        payload = json.dumps(data, ensure_ascii=False)
+        parts.extend(["--data", shlex.quote(payload)])
+    parts.append(shlex.quote(url))
+    return " ".join(parts)
+
+
+def _load_json_or_raise(payload_text: str) -> dict[str, Any]:
+    """Load JSON payload and normalize type errors."""
+    payload = json.loads(payload_text)
+    if isinstance(payload, dict):
+        return payload
+
+    _raise_unexpected_payload_error()
+    return {}
 
 
 class IntelliclimaApiClient:
@@ -118,6 +146,7 @@ class IntelliclimaApiClient:
             data=login_body,
             ensure_auth=False,
         )
+        LOGGER.debug("Login raw response: %s", response)
 
         if response.get("status") != "OK":
             msg = "Invalid credentials"
@@ -148,6 +177,7 @@ class IntelliclimaApiClient:
             houses_url,
             headers=self._auth_headers(),
         )
+        LOGGER.debug("House list raw response: %s", payload)
 
         if payload.get("status") == "NO_AUTH":
             msg = "Authentication expired"
@@ -194,6 +224,7 @@ class IntelliclimaApiClient:
             data=body,
             headers=self._auth_headers(),
         )
+        LOGGER.debug("Device raw response for %s: %s", device_id, payload)
 
         if payload.get("status") == "NO_AUTH":
             msg = "Authentication expired"
@@ -266,12 +297,13 @@ class IntelliclimaApiClient:
             "w_Tset_Tman": target_temperature,
             "mode": _mode_to_int(hvac_mode),
         }
-        await self._request(
+        response = await self._request(
             "post",
             set_url,
             data=body,
             headers=self._auth_headers(),
         )
+        LOGGER.debug("Set C800 raw response for serial=%s: %s", serial, response)
 
     async def async_validate_credentials(self) -> None:
         """Validate credentials during config flow."""
@@ -295,6 +327,9 @@ class IntelliclimaApiClient:
         if ensure_auth and not self._auth_token:
             await self.async_authenticate()
 
+        curl_command = _to_curl_command(method, url, merged_headers, data)
+        LOGGER.debug("HTTP request (curl): %s", curl_command)
+
         try:
             async with async_timeout.timeout(20):
                 response = await self._session.request(
@@ -303,15 +338,16 @@ class IntelliclimaApiClient:
                     headers=merged_headers,
                     json=data,
                 )
+                response_text = await response.text()
+                LOGGER.debug(
+                    "HTTP raw response status=%s body=%s",
+                    response.status,
+                    response_text,
+                )
                 if response.status in (401, 403):
                     _raise_authentication_error()
                 response.raise_for_status()
-                payload = await response.json(content_type=None)
-
-                if isinstance(payload, dict):
-                    return payload
-
-                _raise_unexpected_payload_error()
+                return _load_json_or_raise(response_text)
 
         except TimeoutError as exception:
             msg = f"Timeout error fetching information - {exception}"
