@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import timedelta
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import IntelliclimaApiClient
@@ -20,6 +19,7 @@ from .const import (
 )
 from .coordinator import IntelliclimaDataUpdateCoordinator
 from .data import IntelliclimaData
+from .session import async_create_intelliclima_session
 
 
 async def async_setup_entry(hass, entry) -> bool:  # noqa: ANN001
@@ -36,7 +36,7 @@ async def async_setup_entry(hass, entry) -> bool:  # noqa: ANN001
         password=entry.data[CONF_PASSWORD],
         base_url=entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL),
         api_folder=entry.data.get(CONF_API_FOLDER, DEFAULT_API_FOLDER),
-        session=async_get_clientsession(hass),
+        session=async_create_intelliclima_session(hass),
     )
 
     entry.runtime_data = IntelliclimaData(

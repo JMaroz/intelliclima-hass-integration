@@ -306,6 +306,12 @@ class IntelliclimaApiClient:
         except (aiohttp.ClientError, socket.gaierror) as exception:
             msg = f"Error fetching information - {exception}"
             raise IntelliclimaApiClientCommunicationError(msg) from exception
+        except TypeError as exception:
+            if "getaddrinfo" in str(exception):
+                msg = f"DNS resolver error fetching information - {exception}"
+                raise IntelliclimaApiClientCommunicationError(msg) from exception
+            msg = f"Unexpected type error during API request - {exception}"
+            raise IntelliclimaApiClientError(msg) from exception
         except IntelliclimaApiClientAuthenticationError:
             self._auth_token = None
             self._user_id = None

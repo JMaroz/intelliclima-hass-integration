@@ -6,7 +6,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from slugify import slugify
 
 from .api import (
@@ -23,6 +22,7 @@ from .const import (
     DOMAIN,
     LOGGER,
 )
+from .session import async_create_intelliclima_session
 
 
 class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -110,6 +110,6 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             password=password,
             base_url=base_url,
             api_folder=api_folder,
-            session=async_create_clientsession(self.hass),
+            session=async_create_intelliclima_session(self.hass),
         )
         await client.async_validate_credentials()

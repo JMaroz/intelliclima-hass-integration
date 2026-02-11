@@ -97,3 +97,9 @@ Optional flags:
 - `--base-url` (default: `https://app.intelliclima.com`)
 - `--api-folder` (default: `/`)
 - `devices --raw` to print complete payloads
+
+
+## Troubleshooting
+
+- If login fails with a DNS resolver error similar to `Channel.getaddrinfo() takes 3 positional arguments...`, update to the latest version of this integration.
+  The integration now forces a threaded DNS resolver for its HTTP session to avoid that aiodns incompatibility in some Python environments.
