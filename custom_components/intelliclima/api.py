@@ -12,6 +12,8 @@ from uuid import uuid4
 import aiohttp
 import async_timeout
 
+from .const import LOGGER
+
 
 class IntelliclimaApiClientError(Exception):
     """Exception to indicate a general API error."""
@@ -97,6 +99,7 @@ class IntelliclimaApiClient:
 
     async def async_authenticate(self) -> None:
         """Authenticate with Intelliclima."""
+        LOGGER.info("Authenticating Intelliclima user %s", self._username)
         hashed_password = hashlib.sha256(self._password.encode()).hexdigest()
         login_url = self._url(f"user/login/{self._username}/{hashed_password}")
         login_body = {
@@ -128,6 +131,9 @@ class IntelliclimaApiClient:
 
         self._auth_token = str(token)
         self._user_id = str(user_id)
+        LOGGER.debug(
+            "Intelliclima authentication successful for user_id=%s", self._user_id
+        )
 
         await self.async_set_house_and_device_ids()
 
@@ -166,6 +172,11 @@ class IntelliclimaApiClient:
 
         self._house_id = str(house_id)
         self._device_ids = device_ids
+        LOGGER.debug(
+            "Intelliclima discovered house_id=%s with %s devices",
+            self._house_id,
+            len(self._device_ids),
+        )
 
     async def async_get_device(self, device_id: str) -> list[dict[str, Any]]:
         """Get single device payload from sync endpoint."""
@@ -176,6 +187,7 @@ class IntelliclimaApiClient:
             "includi_eco": True,
             "includi_ledot": True,
         }
+        LOGGER.debug("Fetching Intelliclima device payload for device_id=%s", device_id)
         payload = await self._request(
             "post",
             device_url,
@@ -220,6 +232,7 @@ class IntelliclimaApiClient:
                 continue
             devices.extend(await self.async_get_device(device_id))
 
+        LOGGER.debug("Fetched %s Intelliclima device payload(s)", len(devices))
         return devices
 
     async def async_get_states(self) -> dict[str, dict[str, Any]]:

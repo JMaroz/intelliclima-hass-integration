@@ -106,4 +106,30 @@ Known API folders:
 ## Troubleshooting
 
 - If login fails with a DNS resolver error similar to `Channel.getaddrinfo() takes 3 positional arguments...`, update to the latest version of this integration.
-  The integration now forces a threaded DNS resolver for its HTTP session to avoid that aiodns incompatibility in some Python environments.
+  The Intelliclima integration now forces a threaded DNS resolver for its own HTTP session to avoid that aiodns incompatibility.
+- If you still see the same traceback under **other integrations** (for example `homeassistant_alerts`), that is a Home Assistant environment resolver issue, not specific to Intelliclima.
+  In local dev environments, reinstalling/upgrading resolver deps usually fixes it:
+
+  ```bash
+  pip install --upgrade aiodns pycares aiohttp-asyncmdnsresolver
+  ```
+
+  If it persists, remove `aiodns` so aiohttp falls back to threaded DNS:
+
+  ```bash
+  pip uninstall -y aiodns
+  ```
+
+
+## Enable Intelliclima debug logs
+
+In your `configuration.yaml`:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.intelliclima: debug
+```
+
+Then restart Home Assistant.

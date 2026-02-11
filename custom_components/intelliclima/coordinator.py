@@ -11,6 +11,7 @@ from .api import (
     IntelliclimaApiClientAuthenticationError,
     IntelliclimaApiClientError,
 )
+from .const import LOGGER
 from .data import IntelliclimaCoordinatorData
 
 if TYPE_CHECKING:
@@ -33,6 +34,9 @@ class IntelliclimaDataUpdateCoordinator(
                 for device in devices
                 if isinstance(device, dict) and device.get("id") is not None
             }
+            LOGGER.debug(
+                "Coordinator refresh: devices=%s states=%s", len(devices), len(states)
+            )
             return IntelliclimaCoordinatorData(devices=devices, states=states)
         except IntelliclimaApiClientAuthenticationError as exception:
             raise ConfigEntryAuthFailed(exception) from exception
