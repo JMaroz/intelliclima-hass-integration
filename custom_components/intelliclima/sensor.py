@@ -17,13 +17,13 @@ if TYPE_CHECKING:
 
 ENTITY_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
-        key="humidity",
+        key="rh",
         name="Humidity",
         native_unit_of_measurement="%",
         icon="mdi:water-percent",
     ),
     SensorEntityDescription(
-        key="outdoor_temperature",
+        key="outside_temperature",
         name="Outdoor Temperature",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         icon="mdi:thermometer",
@@ -69,4 +69,9 @@ class IntelliclimaSensor(IntelliclimaEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return sensor state."""
-        return self._state_data.get(self.entity_description.key)
+        value = self._state_data.get(self.entity_description.key)
+        if value in (None, ""):
+            if self.entity_description.key == "outside_temperature":
+                return self._state_data.get("t_amb")
+            return None
+        return value

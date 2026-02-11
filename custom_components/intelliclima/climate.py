@@ -8,6 +8,7 @@ from homeassistant.components.climate import ClimateEntity, ClimateEntityDescrip
 from homeassistant.components.climate.const import ClimateEntityFeature, HVACMode
 from homeassistant.const import UnitOfTemperature
 
+from .api import IntelliclimaApiClient
 from .entity import IntelliclimaEntity
 
 if TYPE_CHECKING:
@@ -40,9 +41,9 @@ class IntelliclimaClimate(IntelliclimaEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_hvac_modes: ClassVar[list[HVACMode]] = [
-        HVACMode.HEAT,
-        HVACMode.COOL,
         HVACMode.OFF,
+        HVACMode.HEAT,
+        HVACMode.AUTO,
     ]
 
     def __init__(
@@ -59,52 +60,60 @@ class IntelliclimaClimate(IntelliclimaEntity, ClimateEntity):
     @property
     def current_temperature(self) -> float | None:
         """Return current temperature."""
-        value = self._state_data.get("current_temperature") or self._state_data.get(
-            "temperature"
-        )
-        return float(value) if value is not None else None
+        return IntelliclimaApiClient.get_current_temperature(self._state_data)
 
     @property
     def target_temperature(self) -> float | None:
         """Return configured target temperature."""
-        value = self._state_data.get("target_temperature") or self._state_data.get(
-            "setpoint"
-        )
-        return float(value) if value is not None else None
+        return IntelliclimaApiClient.get_target_temperature(self._state_data)
 
     @property
     def hvac_mode(self) -> HVACMode:
         """Return HVAC mode."""
-        if not self._state_data.get("power", True):
-            return HVACMode.OFF
-
-        mode = str(self._state_data.get("mode", "heat")).lower()
-        if mode in {"cool", "cold"}:
-            return HVACMode.COOL
-        return HVACMode.HEAT
+        mode = IntelliclimaApiClient.get_hvac_mode(self._state_data)
+        if mode == "heat":
+            return HVACMode.HEAT
+        if mode == "auto":
+            return HVACMode.AUTO
+        return HVACMode.OFF
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
+        if not self._serial:
+            return
+
         if (temperature := kwargs.get("temperature")) is None:
             return
-        await self.coordinator.config_entry.runtime_data.client.async_set_device_state(
-            self._device_id,
-            {"target_temperature": temperature},
+
+        hvac_mode = IntelliclimaApiClient.get_hvac_mode(self._state_data)
+        await self.coordinator.config_entry.runtime_data.client.async_set_c800_state(
+            serial=self._serial,
+            target_temperature=float(temperature),
+            hvac_mode=hvac_mode,
+            model=self.device_model,
         )
         await self.coordinator.async_request_refresh()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode."""
-        payload: dict[str, Any]
-        if hvac_mode == HVACMode.OFF:
-            payload = {"power": False}
-        elif hvac_mode == HVACMode.COOL:
-            payload = {"power": True, "mode": "cool"}
-        else:
-            payload = {"power": True, "mode": "heat"}
+        if not self._serial:
+            return
 
-        await self.coordinator.config_entry.runtime_data.client.async_set_device_state(
-            self._device_id,
-            payload,
+        current_target = IntelliclimaApiClient.get_target_temperature(self._state_data)
+        if current_target is None:
+            current_target = 20.0
+
+        if hvac_mode == HVACMode.HEAT:
+            mode = "heat"
+        elif hvac_mode == HVACMode.AUTO:
+            mode = "auto"
+        else:
+            mode = "off"
+
+        await self.coordinator.config_entry.runtime_data.client.async_set_c800_state(
+            serial=self._serial,
+            target_temperature=current_target,
+            hvac_mode=mode,
+            model=self.device_model,
         )
         await self.coordinator.async_request_refresh()

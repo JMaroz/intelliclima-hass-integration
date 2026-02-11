@@ -28,7 +28,11 @@ class IntelliclimaDataUpdateCoordinator(
         """Fetch latest devices and states."""
         try:
             devices = await self.config_entry.runtime_data.client.async_get_devices()
-            states = await self.config_entry.runtime_data.client.async_get_states()
+            states = {
+                str(device.get("id")): device
+                for device in devices
+                if isinstance(device, dict) and device.get("id") is not None
+            }
             return IntelliclimaCoordinatorData(devices=devices, states=states)
         except IntelliclimaApiClientAuthenticationError as exception:
             raise ConfigEntryAuthFailed(exception) from exception

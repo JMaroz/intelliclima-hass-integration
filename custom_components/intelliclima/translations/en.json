@@ -6,7 +6,8 @@
         "data": {
           "username": "Username",
           "password": "Password",
-          "base_url": "API Base URL"
+          "base_url": "API Base URL",
+          "api_folder": "API Folder Path"
         }
       }
     },

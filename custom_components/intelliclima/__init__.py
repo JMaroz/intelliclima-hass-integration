@@ -9,7 +9,15 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import IntelliclimaApiClient
-from .const import CONF_BASE_URL, DEFAULT_BASE_URL, DOMAIN, LOGGER, PLATFORMS
+from .const import (
+    CONF_API_FOLDER,
+    CONF_BASE_URL,
+    DEFAULT_API_FOLDER,
+    DEFAULT_BASE_URL,
+    DOMAIN,
+    LOGGER,
+    PLATFORMS,
+)
 from .coordinator import IntelliclimaDataUpdateCoordinator
 from .data import IntelliclimaData
 
@@ -27,6 +35,7 @@ async def async_setup_entry(hass, entry) -> bool:  # noqa: ANN001
         username=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD],
         base_url=entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL),
+        api_folder=entry.data.get(CONF_API_FOLDER, DEFAULT_API_FOLDER),
         session=async_get_clientsession(hass),
     )
 

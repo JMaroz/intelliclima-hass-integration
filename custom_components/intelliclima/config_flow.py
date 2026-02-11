@@ -15,7 +15,14 @@ from .api import (
     IntelliclimaApiClientCommunicationError,
     IntelliclimaApiClientError,
 )
-from .const import CONF_BASE_URL, DEFAULT_BASE_URL, DOMAIN, LOGGER
+from .const import (
+    CONF_API_FOLDER,
+    CONF_BASE_URL,
+    DEFAULT_API_FOLDER,
+    DEFAULT_BASE_URL,
+    DOMAIN,
+    LOGGER,
+)
 
 
 class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -36,6 +43,7 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     username=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD],
                     base_url=user_input[CONF_BASE_URL],
+                    api_folder=user_input[CONF_API_FOLDER],
                 )
             except IntelliclimaApiClientAuthenticationError as exception:
                 LOGGER.warning(exception)
@@ -76,19 +84,32 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.URL,
                         ),
                     ),
+                    vol.Required(
+                        CONF_API_FOLDER,
+                        default=DEFAULT_API_FOLDER,
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        ),
+                    ),
                 },
             ),
             errors=errors,
         )
 
     async def _test_credentials(
-        self, username: str, password: str, base_url: str
+        self,
+        username: str,
+        password: str,
+        base_url: str,
+        api_folder: str,
     ) -> None:
         """Validate credentials."""
         client = IntelliclimaApiClient(
             username=username,
             password=password,
             base_url=base_url,
+            api_folder=api_folder,
             session=async_create_clientsession(self.hass),
         )
         await client.async_validate_credentials()
