@@ -72,7 +72,7 @@ You can add this custom component either from this repo directly (dev mode) or i
    - **Username**
    - **Password**
    - **API Base URL** (default usually works)
-   - **API Folder Path** (default `/`, change only if your endpoint is under a subpath)
+   - **API Folder Path** (default `/server_v1_mono/api/`, change only if your account uses a different API family/path)
 
 ### Option B: Install into an existing Home Assistant instance
 
@@ -94,9 +94,13 @@ python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> se
 ```
 
 Optional flags:
-- `--base-url` (default: `https://app.intelliclima.com`)
-- `--api-folder` (default: `/`)
+- `--base-url` (default: `https://intelliclima.fantinicosmi.it`)
+- `--api-folder` (default: `/server_v1_mono/api/`)
 - `devices --raw` to print complete payloads
+
+Known API folders:
+- `/server_v1_mono/api/`
+- `/server_v1_multi/api/`
 
 
 ## Troubleshooting

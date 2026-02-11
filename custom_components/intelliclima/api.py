@@ -60,7 +60,7 @@ def _raise_unexpected_payload_error() -> None:
 
 
 class IntelliclimaApiClient:
-    """Intelliclima API client based on observed cloud API flow."""
+    """Intelliclima API client aligned with known Intelliclima cloud endpoints."""
 
     def __init__(
         self,
@@ -100,9 +100,9 @@ class IntelliclimaApiClient:
         hashed_password = hashlib.sha256(self._password.encode()).hexdigest()
         login_url = self._url(f"user/login/{self._username}/{hashed_password}")
         login_body = {
-            "manufacturer": "HomeAssistant",
-            "model": "Python",
-            "platform": "IntelliclimaHA",
+            "manufacturer": "Homebridge",
+            "model": "NodeJS",
+            "platform": "IntelliClimaHomebridge",
             "version": "1.0.0",
             "serial": "unknown",
             "uuid": str(uuid4()).upper(),
