@@ -28,3 +28,20 @@ The integration also parses `model` and `config` if they are JSON-encoded string
 3. Go to **Settings → Devices & Services → Add Integration**.
 4. Search for **Intelliclima** and add your credentials.
 5. If needed, adjust **API Base URL** and **API Folder Path** to match your installation.
+
+
+## Manual API testing (without Home Assistant)
+
+You can test the Intelliclima API directly with:
+
+```bash
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> login
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> devices
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> device --device-id <ID>
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> set --device-id <ID> --temperature 21.5 --mode heat
+```
+
+Optional flags:
+- `--base-url` (default: `https://app.intelliclima.com`)
+- `--api-folder` (default: `/`)
+- `devices --raw` to print complete payloads
