@@ -5,9 +5,9 @@
     "@ruizmarc"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/ruizmarc/homebridge-intelliclima",
+  "documentation": "https://github.com/Intelliclima-hass-integration/Intelliclima-hass-integration",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/ruizmarc/homebridge-intelliclima/issues",
+  "issue_tracker": "https://github.com/Intelliclima-hass-integration/Intelliclima-hass-integration/issues",
   "version": "0.1.0",
   "requirements": []
 }

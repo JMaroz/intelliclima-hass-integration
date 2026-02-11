@@ -2,16 +2,16 @@
 
 This repository contains a custom Home Assistant integration for Intelliclima devices.
 
-## Implemented API flow (aligned to Homebridge plugin)
+## Implemented API flow
 
-The integration now follows the same request model you shared from `homebridge-intelliclima`:
+The integration uses the Intelliclima API request model based on observed endpoints and payloads:
 
 1. `user/login/{username}/{sha256(password)}` with a device-info JSON body
 2. `casa/elenco2/{userId}` to obtain houses and device IDs (with `Tokenid`/`Token` headers)
 3. `sync/cronos380` with `IDs`, `ECOs`, `includi_eco`, `includi_ledot` to fetch device details
 4. `C800/scrivi/` for write operations (`serial`, `w_Tset_Tman`, `mode`) for `C800WiFi`
 
-It also parses `model` and `config` if they are JSON-encoded strings, like the Homebridge implementation.
+The integration also parses `model` and `config` if they are JSON-encoded strings.
 
 ## Features
 

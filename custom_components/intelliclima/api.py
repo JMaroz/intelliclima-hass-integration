@@ -60,7 +60,7 @@ def _raise_unexpected_payload_error() -> None:
 
 
 class IntelliclimaApiClient:
-    """Intelliclima API client based on Homebridge implementation flow."""
+    """Intelliclima API client based on observed cloud API flow."""
 
     def __init__(
         self,
