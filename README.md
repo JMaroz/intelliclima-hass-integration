@@ -21,14 +21,66 @@ The integration also parses `model` and `config` if they are JSON-encoded string
 - Humidity and outdoor temperature sensors
 - C800WiFi write support for setpoint/mode
 
-## Installation
+## Run in local development environment
 
-1. Copy `custom_components/intelliclima` into your Home Assistant `custom_components` directory.
+### 1) Clone and install dependencies
+
+```bash
+git clone <YOUR_REPOSITORY_URL>
+cd Intelliclima-hass-integration
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+> You can also use the helper script:
+>
+> ```bash
+> ./scripts/setup
+> ```
+
+### 2) Start Home Assistant with this custom component
+
+```bash
+source .venv/bin/activate
+./scripts/develop
+```
+
+This script:
+- creates `config/` if missing,
+- exposes this repository `custom_components` through `PYTHONPATH`,
+- starts Home Assistant in debug mode.
+
+### 3) Open Home Assistant UI
+
+Once Home Assistant is running, open:
+- `http://localhost:8123`
+
+Finish onboarding/login, then add the integration.
+
+## Add the component to Home Assistant
+
+You can add this custom component either from this repo directly (dev mode) or into an existing Home Assistant instance.
+
+### Option A: Use this repository as your HA runtime (recommended for local testing)
+
+1. Start HA with `./scripts/develop`.
+2. In Home Assistant UI go to **Settings → Devices & Services**.
+3. Click **Add Integration**.
+4. Search for **Intelliclima**.
+5. Enter:
+   - **Username**
+   - **Password**
+   - **API Base URL** (default usually works)
+   - **API Folder Path** (default `/`, change only if your endpoint is under a subpath)
+
+### Option B: Install into an existing Home Assistant instance
+
+1. Copy folder `custom_components/intelliclima` into your HA config folder:
+   - `<HA_CONFIG>/custom_components/intelliclima`
 2. Restart Home Assistant.
 3. Go to **Settings → Devices & Services → Add Integration**.
-4. Search for **Intelliclima** and add your credentials.
-5. If needed, adjust **API Base URL** and **API Folder Path** to match your installation.
-
+4. Search for **Intelliclima** and configure credentials.
 
 ## Manual API testing (without Home Assistant)
 
