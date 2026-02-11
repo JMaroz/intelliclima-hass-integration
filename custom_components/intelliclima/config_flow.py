@@ -22,7 +22,7 @@ from .const import (
     DOMAIN,
     LOGGER,
 )
-from .session import async_create_intelliclima_session
+from .session import create_intelliclima_session
 
 
 class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -105,11 +105,15 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         api_folder: str,
     ) -> None:
         """Validate credentials."""
+        session = create_intelliclima_session()
         client = IntelliclimaApiClient(
             username=username,
             password=password,
             base_url=base_url,
             api_folder=api_folder,
-            session=async_create_intelliclima_session(self.hass),
+            session=session,
         )
-        await client.async_validate_credentials()
+        try:
+            await client.async_validate_credentials()
+        finally:
+            await session.close()

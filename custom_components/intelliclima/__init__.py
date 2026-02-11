@@ -19,7 +19,7 @@ from .const import (
 )
 from .coordinator import IntelliclimaDataUpdateCoordinator
 from .data import IntelliclimaData
-from .session import async_create_intelliclima_session
+from .session import create_intelliclima_session
 
 
 async def async_setup_entry(hass, entry) -> bool:  # noqa: ANN001
@@ -31,18 +31,21 @@ async def async_setup_entry(hass, entry) -> bool:  # noqa: ANN001
         update_interval=timedelta(minutes=2),
     )
 
+    session = create_intelliclima_session()
+
     client = IntelliclimaApiClient(
         username=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD],
         base_url=entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL),
         api_folder=entry.data.get(CONF_API_FOLDER, DEFAULT_API_FOLDER),
-        session=async_create_intelliclima_session(hass),
+        session=session,
     )
 
     entry.runtime_data = IntelliclimaData(
         client=client,
         integration=async_get_loaded_integration(hass, entry.domain),
         coordinator=coordinator,
+        session=session,
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -53,7 +56,10 @@ async def async_setup_entry(hass, entry) -> bool:  # noqa: ANN001
 
 async def async_unload_entry(hass, entry) -> bool:  # noqa: ANN001
     """Handle removal of an entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        await entry.runtime_data.session.close()
+    return unloaded
 
 
 async def async_reload_entry(hass, entry) -> None:  # noqa: ANN001

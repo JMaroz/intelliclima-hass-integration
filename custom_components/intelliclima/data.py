@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import aiohttp
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.loader import Integration
 
@@ -22,6 +23,7 @@ class IntelliclimaData:
     client: IntelliclimaApiClient
     coordinator: IntelliclimaDataUpdateCoordinator
     integration: Integration
+    session: aiohttp.ClientSession
 
 
 @dataclass
