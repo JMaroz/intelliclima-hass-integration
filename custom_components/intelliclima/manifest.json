@@ -6,8 +6,8 @@
   ],
   "config_flow": true,
   "documentation": "https://github.com/JMaroz/Intelliclima-hass-integration",
-  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/JMaroz/Intelliclima-hass-integration/issues",
-  "version": "0.1.0",
-  "requirements": []
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.0"
 }
