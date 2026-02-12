@@ -64,7 +64,7 @@ class IntelliclimaClimate(IntelliclimaEntity, ClimateEntity):
         """Initialize Intelliclima climate entity."""
         self.entity_description = entity_description
         super().__init__(coordinator, device)
-        self._attr_name = device.get("name")
+        self._attr_name = self.device_display_name
 
     @property
     def current_temperature(self) -> float | None:
