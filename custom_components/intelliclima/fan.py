@@ -141,6 +141,74 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
             return
         await self._async_apply(mode=0, speed=0)
 
+    async def _async_apply(self, *, mode: int, speed: int) -> None:
+        """Apply ECO mode/speed and refresh coordinator state."""
+        await self.coordinator.config_entry.runtime_data.client.async_set_eco_state(
+            serial=self._serial,
+            mode=mode,
+            speed=speed,
+        )
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Set ECO ventilation mode from Home Assistant preset."""
+        if not self._serial:
+            return
+
+        mode_by_preset = {
+            value: key for key, value in MODE_PRESET_MAP.items() if key < 128
+        }
+        mode = mode_by_preset.get(preset_mode)
+        if mode is None:
+            return
+
+        current_speed = self._fan_level()
+        speed = MAX_NATIVE_FAN_LEVEL if current_speed is None else current_speed
+        if speed <= 0:
+            speed = 1
+
+        await self._async_apply(mode=mode, speed=speed)
+
+    async def async_set_percentage(self, percentage: int) -> None:
+        """Set ECO fan speed percentage (mapped to native 0..4 levels)."""
+        if not self._serial:
+            return
+
+        pct = max(0, min(100, int(percentage)))
+        speed = round((pct / 100) * MAX_NATIVE_FAN_LEVEL)
+        speed = max(MIN_NATIVE_FAN_LEVEL, min(MAX_NATIVE_FAN_LEVEL, speed))
+
+        mode = self._mode_value()
+        if mode is None or mode >= 128:
+            mode = MODE_ALTERNATING_SENSOR
+
+        await self._async_apply(mode=mode, speed=speed)
+
+    async def async_turn_on(
+        self,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Turn on fan and optionally set speed/preset in one call."""
+        del kwargs
+        if preset_mode is not None:
+            await self.async_set_preset_mode(preset_mode)
+            if percentage is not None:
+                await self.async_set_percentage(percentage)
+            return
+
+        if percentage is None:
+            percentage = 25
+        await self.async_set_percentage(percentage)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off fan by setting speed and mode to 0."""
+        del kwargs
+        if not self._serial:
+            return
+        await self._async_apply(mode=0, speed=0)
+
     @property
     def extra_state_attributes(self) -> dict[str, str | int]:
         """Return raw and normalized ECO mode/speed attributes."""
