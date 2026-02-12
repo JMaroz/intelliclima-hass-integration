@@ -196,15 +196,12 @@ class IntelliclimaApiClient:
             return
 
         house_id = next(iter(houses.keys()))
-        devices_for_house = houses.get(house_id, [])
-
-        c800_ids: list[str] = []
-        if isinstance(devices_for_house, list):
-            c800_ids.extend(
-                str(device["id"])
-                for device in devices_for_house
-                if isinstance(device, dict) and device.get("id")
-            )
+        crono_ids_payload = payload.get("cronoIDs", [])
+        c800_ids = (
+            [str(item) for item in crono_ids_payload if item not in (None, "")]
+            if isinstance(crono_ids_payload, list)
+            else []
+        )
 
         eco_ids_payload = payload.get("ecoIDs", [])
         eco_ids = (
