@@ -67,9 +67,7 @@ class IntelliclimaSensor(IntelliclimaEntity, SensorEntity):
         """Initialize Intelliclima sensor entity."""
         self.entity_description = entity_description
         super().__init__(coordinator, device)
-        self._attr_name = (
-            f"{device.get('name', self._device_id)} {entity_description.name}"
-        )
+        self._attr_name = f"{self.device_display_name} {entity_description.name}"
 
     @property
     def native_value(self) -> Any:
