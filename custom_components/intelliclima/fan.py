@@ -1,22 +1,16 @@
 """
 Fan platform for Intelliclima ECOCOMFORT devices.
 
-Implementation notes:
-- ECO payloads expose speed and mode separately.
-- Speed is normalized to a native 0..4 scale (off, sleep, vel1, vel2, vel3).
-- Some scheduled states surface translated values (16..19), normalized back to 1..4.
-- Ventilation mode is exposed through `preset_mode` for clearer UX/automations.
+This entity intentionally exposes only power controls in the main fan card.
+Mode/speed writes are handled by dedicated Select entities to provide a
+clear dropdown UX in Home Assistant frontend.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.fan import (
-    FanEntity,
-    FanEntityDescription,
-    FanEntityFeature,
-)
+from homeassistant.components.fan import FanEntity, FanEntityDescription, FanEntityFeature
 
 from .entity import IntelliclimaEntity
 
@@ -26,31 +20,13 @@ if TYPE_CHECKING:
     from .coordinator import IntelliclimaDataUpdateCoordinator
     from .data import IntelliclimaConfigEntry
 
-# Native levels observed from ECO units in manual control.
-# 0=off, 1=sleep, 2=vel1, 3=vel2, 4=vel3.
 MIN_NATIVE_FAN_LEVEL = 0
 MAX_NATIVE_FAN_LEVEL = 4
-
-# Some schedule/auto states can report translated values (16..19).
-# Those are mapped to native 1..4 via OFFSET=15.
 TRANSLATED_FAN_LEVEL_MIN = 16
 TRANSLATED_FAN_LEVEL_MAX = 19
 TRANSLATED_FAN_LEVEL_OFFSET = 15
 
-MODE_OUTDOOR_INTAKE = 1
-MODE_INDOOR_EXHAUST = 2
-MODE_ALTERNATING_45_SECONDS = 3
 MODE_ALTERNATING_SENSOR = 4
-MODE_ALTERNATING_SENSOR_STATE = 132
-
-# Vendor mode mapping (mode_set/mode_state) to HA-friendly preset names.
-MODE_PRESET_MAP = {
-    MODE_OUTDOOR_INTAKE: "outdoor_intake",
-    MODE_INDOOR_EXHAUST: "indoor_exhaust",
-    MODE_ALTERNATING_45_SECONDS: "alternating_45s",
-    MODE_ALTERNATING_SENSOR: "alternating_sensor",
-    MODE_ALTERNATING_SENSOR_STATE: "alternating_sensor",
-}
 
 ENTITY_DESCRIPTION = FanEntityDescription(
     key="ecocomfort_fan",
@@ -85,10 +61,7 @@ async def async_setup_entry(
 class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
     """Intelliclima ECOCOMFORT fan entity."""
 
-    _attr_supported_features = FanEntityFeature.PRESET_MODE
-    _attr_preset_modes: ClassVar[list[str]] = list(
-        dict.fromkeys(MODE_PRESET_MAP.values())
-    )
+    _attr_supported_features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
 
     def __init__(
         self,
@@ -121,24 +94,28 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
         if MIN_NATIVE_FAN_LEVEL <= speed <= MAX_NATIVE_FAN_LEVEL:
             return speed
 
-        # Some API payloads expose scheduled fan levels as 16..19.
-        # Convert those values to the observed native 1..4 levels.
         if TRANSLATED_FAN_LEVEL_MIN <= speed <= TRANSLATED_FAN_LEVEL_MAX:
             return speed - TRANSLATED_FAN_LEVEL_OFFSET
 
         return max(MIN_NATIVE_FAN_LEVEL, min(MAX_NATIVE_FAN_LEVEL, speed))
 
-    def _mode_value(self) -> int | None:
-        """
-        Return current ventilation mode value.
-
-        Prefer `mode_state` (effective runtime state), then fallback to
-        `mode_set` (configured state) when runtime state is unavailable.
-        """
+    def _mode_value(self) -> int:
+        """Return writable mode value (fallback to alternating sensor)."""
         mode_state = self._to_int(self._state_data.get("mode_state"))
-        if mode_state is not None:
-            return mode_state
-        return self._to_int(self._state_data.get("mode_set"))
+        mode_set = self._to_int(self._state_data.get("mode_set"))
+        mode = mode_state if mode_state is not None else mode_set
+        if mode is None or mode >= 128:
+            return MODE_ALTERNATING_SENSOR
+        return mode
+
+    async def _async_apply(self, *, mode: int, speed: int) -> None:
+        """Apply ECO mode/speed and refresh coordinator state."""
+        await self.coordinator.config_entry.runtime_data.client.async_set_eco_state(
+            serial=self._serial,
+            mode=mode,
+            speed=speed,
+        )
+        await self.coordinator.async_request_refresh()
 
     @property
     def is_on(self) -> bool | None:
@@ -146,37 +123,33 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
         level = self._fan_level()
         return None if level is None else level > 0
 
-    @property
-    def percentage(self) -> int | None:
-        """Return fan speed percentage from Intelliclima speed state."""
-        level = self._fan_level()
-        if level is None:
-            return None
-        return int((level / MAX_NATIVE_FAN_LEVEL) * 100)
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on fan with last known (or fallback) mode/speed."""
+        del kwargs
+        if not self._serial:
+            return
 
-    @property
-    def preset_mode(self) -> str | None:
-        """Return selected ventilation mode."""
-        mode = self._mode_value()
-        if mode is None:
-            return None
-        return MODE_PRESET_MAP.get(mode)
+        speed = self._fan_level() or 1
+        if speed <= 0:
+            speed = 1
+        await self._async_apply(mode=self._mode_value(), speed=speed)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off fan by setting mode/speed to 0."""
+        del kwargs
+        if not self._serial:
+            return
+        await self._async_apply(mode=0, speed=0)
 
     @property
     def extra_state_attributes(self) -> dict[str, str | int]:
-        """
-        Return extra attributes including raw ECO mode/speed values.
-
-        We intentionally expose both raw and normalized values to simplify
-        user troubleshooting and automation authoring.
-        """
+        """Return raw and normalized ECO mode/speed attributes."""
         attributes = super().extra_state_attributes
         mode_state = self._to_int(self._state_data.get("mode_state"))
         mode_set = self._to_int(self._state_data.get("mode_set"))
         speed_state = self._to_int(self._state_data.get("speed_state"))
         speed_set = self._to_int(self._state_data.get("speed_set"))
         fan_level = self._fan_level()
-        mode = self.preset_mode
 
         if mode_state is not None:
             attributes["mode_state"] = mode_state
@@ -188,7 +161,5 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
             attributes["speed_set"] = speed_set
         if fan_level is not None:
             attributes["speed_level"] = fan_level
-        if mode is not None:
-            attributes["ventilation_mode"] = mode
 
         return attributes

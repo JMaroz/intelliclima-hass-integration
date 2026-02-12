@@ -50,6 +50,48 @@ def _mode_to_int(hvac_mode: str) -> int:
     return 0
 
 
+def _crc8_eco(payload: bytes) -> int:
+    """Compute ECO frame checksum (CRC-8 poly=0x31, xorout=0xC5)."""
+    crc = 0x00
+    for byte in payload:
+        crc ^= byte
+        for _ in range(8):
+            if crc & 0x80:
+                crc = ((crc << 1) & 0xFF) ^ 0x31
+            else:
+                crc = (crc << 1) & 0xFF
+    return crc ^ 0xC5
+
+
+def _eco_trama(serial: str, mode: int, speed: int) -> str:
+    """Build ECO `trama` payload for `eco/send/` endpoint."""
+    if mode < 0 or mode > 0xFF:
+        msg = f"Invalid ECO mode byte: {mode}"
+        raise IntelliclimaApiClientError(msg)
+    if speed < 0 or speed > 0xFF:
+        msg = f"Invalid ECO speed byte: {speed}"
+        raise IntelliclimaApiClientError(msg)
+
+    normalized_serial = _normalize_eco_serial(serial)
+    serial_hex = normalized_serial[-4:]
+    frame_without_checksum = (
+        f"0A0000{serial_hex}000E2F00500000{mode:02X}{speed:02X}"
+    )
+    checksum = _crc8_eco(bytes.fromhex(frame_without_checksum))
+    return f"{frame_without_checksum}{checksum:02X}0D"
+
+
+
+
+def _normalize_eco_serial(serial: str) -> str:
+    """Normalize ECO serial to 8-digit string returned by API responses."""
+    serial_digits = "".join(ch for ch in str(serial) if ch.isdigit())
+    if not serial_digits or len(serial_digits) > 8:
+        msg = f"Invalid ECO serial format: {serial}"
+        raise IntelliclimaApiClientError(msg)
+    return serial_digits.zfill(8)
+
+
 def _raise_authentication_error() -> None:
     """Raise normalized auth error."""
     msg = "Invalid credentials"
@@ -346,6 +388,64 @@ class IntelliclimaApiClient:
     async def async_validate_credentials(self) -> None:
         """Validate credentials during config flow."""
         await self.async_get_devices()
+
+    async def async_set_eco_state(self, serial: str, mode: int, speed: int) -> None:
+        """Set ECO ventilation mode and speed with raw `trama` command."""
+        if not serial:
+            msg = "Missing ECO serial"
+            raise IntelliclimaApiClientError(msg)
+
+        set_url = self._url("eco/send/")
+        trama = _eco_trama(serial=serial, mode=mode, speed=speed)
+        body = {"trama": trama}
+        curl_command = _to_curl_command(
+            "post",
+            set_url,
+            {"Accept": "application/json", **self._auth_headers()},
+            body,
+        )
+        LOGGER.info("ECO write request (curl): %s", curl_command)
+
+        response = await self._request(
+            "post",
+            set_url,
+            data=body,
+            headers=self._auth_headers(),
+        )
+
+        response_status = str(response.get("status") or "")
+        response_serial = str(response.get("serial") or "")
+        response_trama = str(response.get("trama") or "").upper()
+
+        if response_status != "OK":
+            msg = (
+                "Unexpected ECO write response status for "
+                f"serial={serial}: {response_status}"
+            )
+            raise IntelliclimaApiClientError(msg)
+
+        expected_serial = _normalize_eco_serial(serial)
+        if response_serial and response_serial != expected_serial:
+            msg = (
+                "ECO write acknowledged with unexpected serial. "
+                f"expected={expected_serial} got={response_serial}"
+            )
+            raise IntelliclimaApiClientError(msg)
+
+        if response_trama and response_trama != trama:
+            msg = (
+                "ECO write acknowledged with unexpected trama. "
+                f"expected={trama} got={response_trama}"
+            )
+            raise IntelliclimaApiClientError(msg)
+
+        LOGGER.debug(
+            "Set ECO response verified for serial=%s mode=%s speed=%s status=%s",
+            serial,
+            mode,
+            speed,
+            response_status,
+        )
 
     async def _request(
         self,

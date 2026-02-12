@@ -143,6 +143,26 @@ In Home Assistant:
 
 `132` is treated as a runtime state variant of sensor-driven alternating mode.
 
+### Reverse-engineered ECO `trama` body pattern
+
+From captured `eco/send/` requests, the body payload follows this frame layout:
+
+```text
+trama = 0A 0000 SSSS 000E2F0050 0000 MM SS CC 0D
+```
+
+Where:
+- `SSSS` = 4-digit device serial (example: `0675`, `0674`)
+- `MM` = mode byte (`01` outdoor intake, `02` indoor exhaust, `03` alternating 45s, `04` alternating sensor, `00` off)
+- `SS` = speed byte (`01` sleep, `02` vel1, `03` vel2, `04` vel3, `10` auto, `00` off)
+- `CC` = checksum byte (varies with full frame content)
+
+You can analyze your own captured curl JSON with:
+
+```bash
+python scripts/eco_trama_pattern.py path/to/captured_curls.json
+```
+
 ### Exposed diagnostic attributes
 
 For ECO fan entities, the integration exposes additional state attributes:
@@ -151,6 +171,24 @@ For ECO fan entities, the integration exposes additional state attributes:
 - normalized: `speed_level`, `ventilation_mode`
 
 These attributes are useful when creating automations and when comparing HA state with vendor app behavior.
+
+### ECO control from Home Assistant UI
+
+ECO controls are now exposed with a cleaner frontend UX:
+
+- **Fan entity**: on/off only
+- **Ventilation Mode**: dedicated `select` entity (dropdown)
+- **Ventilation Speed**: dedicated `select` entity (dropdown with `off`, `sleep`, `vel1`, `vel2`, `vel3`, `auto`)
+
+Under the hood the integration builds and sends `eco/send/` payloads with this frame format:
+
+```json
+{"trama":"0A0000SSSS000E2F00500000MMSSCC0D"}
+```
+
+Where `SSSS` is serial, `MM` is mode byte, `SS` is speed byte, and `CC` is CRC-8 checksum.
+
+Write responses are validated against the vendor echo payload (example: `{"status":"OK","serial":"00000674","trama":"0A00000674000E2F005000000410B20D"}`), so mismatched `serial`/`trama` now raise an integration error instead of silently succeeding.
 
 ## Troubleshooting
 
