@@ -1,4 +1,12 @@
-"""Fan platform for Intelliclima ECOCOMFORT devices."""
+"""
+Fan platform for Intelliclima ECOCOMFORT devices.
+
+Implementation notes:
+- ECO payloads expose speed and mode separately.
+- Speed is normalized to a native 0..4 scale (off, sleep, vel1, vel2, vel3).
+- Some scheduled states surface translated values (16..19), normalized back to 1..4.
+- Ventilation mode is exposed through `preset_mode` for clearer UX/automations.
+"""
 
 from __future__ import annotations
 
@@ -18,8 +26,13 @@ if TYPE_CHECKING:
     from .coordinator import IntelliclimaDataUpdateCoordinator
     from .data import IntelliclimaConfigEntry
 
+# Native levels observed from ECO units in manual control.
+# 0=off, 1=sleep, 2=vel1, 3=vel2, 4=vel3.
 MIN_NATIVE_FAN_LEVEL = 0
 MAX_NATIVE_FAN_LEVEL = 4
+
+# Some schedule/auto states can report translated values (16..19).
+# Those are mapped to native 1..4 via OFFSET=15.
 TRANSLATED_FAN_LEVEL_MIN = 16
 TRANSLATED_FAN_LEVEL_MAX = 19
 TRANSLATED_FAN_LEVEL_OFFSET = 15
@@ -30,6 +43,7 @@ MODE_ALTERNATING_45_SECONDS = 3
 MODE_ALTERNATING_SENSOR = 4
 MODE_ALTERNATING_SENSOR_STATE = 132
 
+# Vendor mode mapping (mode_set/mode_state) to HA-friendly preset names.
 MODE_PRESET_MAP = {
     MODE_OUTDOOR_INTAKE: "outdoor_intake",
     MODE_INDOOR_EXHAUST: "indoor_exhaust",
@@ -115,7 +129,12 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
         return max(MIN_NATIVE_FAN_LEVEL, min(MAX_NATIVE_FAN_LEVEL, speed))
 
     def _mode_value(self) -> int | None:
-        """Return current ventilation mode value."""
+        """
+        Return current ventilation mode value.
+
+        Prefer `mode_state` (effective runtime state), then fallback to
+        `mode_set` (configured state) when runtime state is unavailable.
+        """
         mode_state = self._to_int(self._state_data.get("mode_state"))
         if mode_state is not None:
             return mode_state
@@ -145,7 +164,12 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, str | int]:
-        """Return extra attributes including raw ECO mode/speed values."""
+        """
+        Return extra attributes including raw ECO mode/speed values.
+
+        We intentionally expose both raw and normalized values to simplify
+        user troubleshooting and automation authoring.
+        """
         attributes = super().extra_state_attributes
         mode_state = self._to_int(self._state_data.get("mode_state"))
         mode_set = self._to_int(self._state_data.get("mode_set"))

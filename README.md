@@ -105,6 +105,53 @@ Known API folders:
 - `/server_v1_multi/api/`
 
 
+
+## ECOCOMFORT fan behavior (mode + speed mapping)
+
+The ECO devices expose **two independent dimensions** in API payloads:
+
+- **Speed** (`speed_set`, `speed_state`)
+- **Ventilation mode** (`mode_set`, `mode_state`)
+
+### Speed mapping used by this integration
+
+Observed native states:
+
+| API value | Meaning |
+|---|---|
+| `0` | Off |
+| `1` | Sleep |
+| `2` | Vel1 |
+| `3` | Vel2 |
+| `4` | Vel3 |
+
+Some schedule/auto payloads may report translated values `16..19`; these are normalized to native levels `1..4` for Home Assistant state rendering.
+
+In Home Assistant:
+- `is_on` is `true` when normalized speed is `> 0`
+- `percentage` is computed from normalized level over max level `4`
+
+### Ventilation mode mapping used by this integration
+
+| API value (`mode_set`/`mode_state`) | Preset |
+|---|---|
+| `1` | `outdoor_intake` |
+| `2` | `indoor_exhaust` |
+| `3` | `alternating_45s` |
+| `4` | `alternating_sensor` |
+| `132` | `alternating_sensor` |
+
+`132` is treated as a runtime state variant of sensor-driven alternating mode.
+
+### Exposed diagnostic attributes
+
+For ECO fan entities, the integration exposes additional state attributes:
+
+- raw: `mode_set`, `mode_state`, `speed_set`, `speed_state`
+- normalized: `speed_level`, `ventilation_mode`
+
+These attributes are useful when creating automations and when comparing HA state with vendor app behavior.
+
 ## Troubleshooting
 
 - If login fails with a DNS resolver error similar to `Channel.getaddrinfo() takes 3 positional arguments...`, update to the latest version of this integration.
