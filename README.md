@@ -174,11 +174,11 @@ These attributes are useful when creating automations and when comparing HA stat
 
 ### ECO control from Home Assistant UI
 
-ECO fan entities now support write operations directly from the frontend:
+ECO controls are now exposed with a cleaner frontend UX:
 
-- set **ventilation mode** via `preset_mode`
-- set **fan speed** via percentage (mapped to native levels `0..4`)
-- turn on/off with standard fan controls
+- **Fan entity**: on/off only
+- **Ventilation Mode**: dedicated `select` entity (dropdown)
+- **Ventilation Speed**: dedicated `select` entity (dropdown with `off`, `sleep`, `vel1`, `vel2`, `vel3`, `auto`)
 
 Under the hood the integration builds and sends `eco/send/` payloads with this frame format:
 

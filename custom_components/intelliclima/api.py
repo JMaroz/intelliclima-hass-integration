@@ -72,12 +72,8 @@ def _eco_trama(serial: str, mode: int, speed: int) -> str:
         msg = f"Invalid ECO speed byte: {speed}"
         raise IntelliclimaApiClientError(msg)
 
-    serial_digits = "".join(ch for ch in str(serial) if ch.isdigit())
-    if not serial_digits or len(serial_digits) > 4:
-        msg = f"Invalid ECO serial format: {serial}"
-        raise IntelliclimaApiClientError(msg)
-
-    serial_hex = serial_digits.zfill(4)
+    normalized_serial = _normalize_eco_serial(serial)
+    serial_hex = normalized_serial[-4:]
     frame_without_checksum = (
         f"0A0000{serial_hex}000E2F00500000{mode:02X}{speed:02X}"
     )
@@ -402,6 +398,14 @@ class IntelliclimaApiClient:
         set_url = self._url("eco/send/")
         trama = _eco_trama(serial=serial, mode=mode, speed=speed)
         body = {"trama": trama}
+        curl_command = _to_curl_command(
+            "post",
+            set_url,
+            {"Accept": "application/json", **self._auth_headers()},
+            body,
+        )
+        LOGGER.info("ECO write request (curl): %s", curl_command)
+
         response = await self._request(
             "post",
             set_url,
