@@ -1,0 +1,13 @@
+{
+  "domain": "intelliclima",
+  "name": "Intelliclima",
+  "codeowners": [
+    "@ruizmarc"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/JMaroz/Intelliclima-hass-integration",
+  "issue_tracker": "https://github.com/JMaroz/Intelliclima-hass-integration/issues",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}

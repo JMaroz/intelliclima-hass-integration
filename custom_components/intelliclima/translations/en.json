@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Configure your Intelliclima account credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "base_url": "API Base URL",
+          "api_folder": "API Folder Path"
+        }
+      }
+    },
+    "error": {
+      "auth": "Username or password is wrong.",
+      "connection": "Unable to connect to the Intelliclima API.",
+      "unknown": "Unknown error occurred."
+    },
+    "abort": {
+      "already_configured": "This account is already configured."
+    }
+  }
+}
