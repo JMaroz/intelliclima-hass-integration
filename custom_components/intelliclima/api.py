@@ -13,7 +13,7 @@ from uuid import uuid4
 import aiohttp
 import async_timeout
 
-from .const import LOGGER
+from .const import DEFAULT_API_FOLDER, DEFAULT_BASE_URL, LOGGER
 
 
 class IntelliclimaApiClientError(Exception):
@@ -89,6 +89,14 @@ def _load_json_or_raise(payload_text: str) -> dict[str, Any]:
     return {}
 
 
+def _pretty_json(payload: Any) -> str:
+    """Return a readable JSON representation for debug logs."""
+    try:
+        return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(payload)
+
+
 class IntelliclimaApiClient:
     """Intelliclima API client aligned with known Intelliclima cloud endpoints."""
 
@@ -96,9 +104,9 @@ class IntelliclimaApiClient:
         self,
         username: str,
         password: str,
-        base_url: str,
-        api_folder: str,
         session: aiohttp.ClientSession,
+        base_url: str = DEFAULT_BASE_URL,
+        api_folder: str = DEFAULT_API_FOLDER,
     ) -> None:
         """Initialize the API client."""
         self._username = username
@@ -110,7 +118,7 @@ class IntelliclimaApiClient:
         self._auth_token: str | None = None
         self._user_id: str | None = None
         self._house_id: str | None = None
-        self._device_ids: list[str] = []
+        self._c800_ids: list[str] = []
         self._eco_ids: list[str] = []
 
     def _url(self, path: str) -> str:
@@ -147,7 +155,6 @@ class IntelliclimaApiClient:
             data=login_body,
             ensure_auth=False,
         )
-        LOGGER.debug("Login raw response: %s", response)
 
         if response.get("status") != "OK":
             msg = "Invalid credentials"
@@ -165,9 +172,7 @@ class IntelliclimaApiClient:
             "Intelliclima authentication successful for user_id=%s", self._user_id
         )
 
-        await self.async_set_house_and_device_ids()
-
-    async def async_set_house_and_device_ids(self) -> None:
+    async def async_fetch_house_and_split_device_ids(self) -> None:
         """Fetch houses and cache selected house/device ids."""
         if not self._user_id:
             await self.async_authenticate()
@@ -178,7 +183,6 @@ class IntelliclimaApiClient:
             houses_url,
             headers=self._auth_headers(),
         )
-        LOGGER.debug("House list raw response: %s", payload)
 
         if payload.get("status") == "NO_AUTH":
             msg = "Authentication expired"
@@ -187,16 +191,16 @@ class IntelliclimaApiClient:
         houses = payload.get("houses", {})
         if not isinstance(houses, dict) or not houses:
             self._house_id = None
-            self._device_ids = []
+            self._c800_ids = []
             self._eco_ids = []
             return
 
         house_id = next(iter(houses.keys()))
         devices_for_house = houses.get(house_id, [])
 
-        device_ids: list[str] = []
+        c800_ids: list[str] = []
         if isinstance(devices_for_house, list):
-            device_ids.extend(
+            c800_ids.extend(
                 str(device["id"])
                 for device in devices_for_house
                 if isinstance(device, dict) and device.get("id")
@@ -210,17 +214,17 @@ class IntelliclimaApiClient:
         )
 
         self._house_id = str(house_id)
-        self._device_ids = device_ids
+        self._c800_ids = c800_ids
         self._eco_ids = eco_ids
         LOGGER.debug(
-            "Intelliclima discovered house_id=%s with generic_ids=%s eco_ids=%s",
+            "Intelliclima discovered house_id=%s with c800_ids=%s eco_ids=%s",
             self._house_id,
-            len(self._device_ids),
+            len(self._c800_ids),
             len(self._eco_ids),
         )
 
-    async def async_get_device(self, device_id: str) -> list[dict[str, Any]]:
-        """Get single device payload from sync/cronos380 endpoint."""
+    async def async_get_c800_device(self, device_id: str) -> list[dict[str, Any]]:
+        """Get single C800 payload from sync/cronos380 endpoint."""
         device_url = self._url("sync/cronos380")
         body = {
             "IDs": device_id,
@@ -228,20 +232,30 @@ class IntelliclimaApiClient:
             "includi_eco": True,
             "includi_ledot": True,
         }
-        LOGGER.debug("Fetching Intelliclima device payload for device_id=%s", device_id)
+        LOGGER.debug("Fetching Intelliclima C800 payload for device_id=%s", device_id)
         payload = await self._request(
             "post",
             device_url,
             data=body,
             headers=self._auth_headers(),
         )
-        LOGGER.debug("Device raw response for %s: %s", device_id, payload)
 
         if payload.get("status") == "NO_AUTH":
             msg = "Authentication expired"
             raise IntelliclimaApiClientAuthenticationError(msg)
 
         return self._normalize_device_data(payload.get("data", []))
+
+    async def async_get_c800_devices(self) -> list[dict[str, Any]]:
+        """Get C800 cronotermostato devices from sync/cronos380 endpoint."""
+        c800_devices: list[dict[str, Any]] = []
+        for device_id in self._c800_ids:
+            if not str(device_id).lstrip("-").isdigit():
+                continue
+            if int(device_id) <= 0:
+                continue
+            c800_devices.extend(await self.async_get_c800_device(str(device_id)))
+        return c800_devices
 
     async def async_get_eco_devices(self) -> list[dict[str, Any]]:
         """Get ECO/RHINO devices from sync/cronos400 endpoint."""
@@ -268,7 +282,6 @@ class IntelliclimaApiClient:
             data=body,
             headers=self._auth_headers(),
         )
-        LOGGER.debug("ECO devices raw response: %s", payload)
 
         if payload.get("status") == "NO_AUTH":
             msg = "Authentication expired"
@@ -277,23 +290,15 @@ class IntelliclimaApiClient:
         return self._normalize_device_data(payload.get("data", []))
 
     async def async_get_devices(self) -> list[dict[str, Any]]:
-        """Return all configured devices from supported sync endpoints."""
+        """Return all configured devices following login -> house -> type calls."""
         if not self._auth_token or not self._user_id:
             await self.async_authenticate()
 
-        if not self._device_ids and not self._eco_ids:
-            await self.async_set_house_and_device_ids()
+        await self.async_fetch_house_and_split_device_ids()
 
         devices: list[dict[str, Any]] = []
         devices.extend(await self.async_get_eco_devices())
-
-        # fallback for legacy non-ECO devices
-        for device_id in self._device_ids:
-            if not str(device_id).lstrip("-").isdigit():
-                continue
-            if int(device_id) <= 0:
-                continue
-            devices.extend(await self.async_get_device(str(device_id)))
+        devices.extend(await self.async_get_c800_devices())
 
         LOGGER.debug("Fetched %s Intelliclima device payload(s)", len(devices))
         return devices
@@ -335,11 +340,14 @@ class IntelliclimaApiClient:
             data=body,
             headers=self._auth_headers(),
         )
-        LOGGER.debug("Set C800 raw response for serial=%s: %s", serial, response)
+        LOGGER.debug(
+            "Set C800 response for serial=%s status=%s",
+            serial,
+            response.get("status"),
+        )
 
     async def async_validate_credentials(self) -> None:
         """Validate credentials during config flow."""
-        await self.async_authenticate()
         await self.async_get_devices()
 
     async def _request(
@@ -361,6 +369,8 @@ class IntelliclimaApiClient:
 
         curl_command = _to_curl_command(method, url, merged_headers, data)
         LOGGER.debug("HTTP request (curl): %s", curl_command)
+        if data is not None:
+            LOGGER.debug("HTTP request payload:\n%s", _pretty_json(data))
 
         try:
             async with async_timeout.timeout(20):
@@ -379,7 +389,13 @@ class IntelliclimaApiClient:
                 if response.status in (401, 403):
                     _raise_authentication_error()
                 response.raise_for_status()
-                return _load_json_or_raise(response_text)
+                payload = _load_json_or_raise(response_text)
+                LOGGER.debug(
+                    "HTTP JSON response status=%s:\n%s",
+                    response.status,
+                    _pretty_json(payload),
+                )
+                return payload
 
         except TimeoutError as exception:
             msg = f"Timeout error fetching information - {exception}"
@@ -397,7 +413,7 @@ class IntelliclimaApiClient:
             self._auth_token = None
             self._user_id = None
             self._house_id = None
-            self._device_ids = []
+            self._c800_ids = []
             self._eco_ids = []
             raise
         except Exception as exception:  # pylint: disable=broad-except

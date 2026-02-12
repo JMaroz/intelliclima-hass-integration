@@ -15,10 +15,6 @@ from .api import (
     IntelliclimaApiClientError,
 )
 from .const import (
-    CONF_API_FOLDER,
-    CONF_BASE_URL,
-    DEFAULT_API_FOLDER,
-    DEFAULT_BASE_URL,
     DOMAIN,
     LOGGER,
 )
@@ -42,8 +38,6 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await self._test_credentials(
                     username=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD],
-                    base_url=user_input[CONF_BASE_URL],
-                    api_folder=user_input[CONF_API_FOLDER],
                 )
             except IntelliclimaApiClientAuthenticationError as exception:
                 LOGGER.warning(exception)
@@ -76,22 +70,6 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.PASSWORD,
                         ),
                     ),
-                    vol.Required(
-                        CONF_BASE_URL,
-                        default=DEFAULT_BASE_URL,
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.URL,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_API_FOLDER,
-                        default=DEFAULT_API_FOLDER,
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.TEXT,
-                        ),
-                    ),
                 },
             ),
             errors=errors,
@@ -101,16 +79,12 @@ class IntelliclimaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self,
         username: str,
         password: str,
-        base_url: str,
-        api_folder: str,
     ) -> None:
         """Validate credentials."""
         session = create_intelliclima_session()
         client = IntelliclimaApiClient(
             username=username,
             password=password,
-            base_url=base_url,
-            api_folder=api_folder,
             session=session,
         )
         try:
