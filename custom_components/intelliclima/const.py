@@ -12,7 +12,7 @@ API_FOLDER_MULTI = "/server_v1_multi/api/"
 API_FOLDER_C800 = "/server_v1_mono/api/"
 
 DEFAULT_API_FOLDER = API_FOLDER_MONO
-PLATFORMS = ["climate", "sensor"]
+PLATFORMS = ["climate", "fan", "sensor"]
 
 CONF_BASE_URL = "base_url"
 CONF_API_FOLDER = "api_folder"

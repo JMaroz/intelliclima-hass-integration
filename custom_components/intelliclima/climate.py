@@ -23,6 +23,14 @@ ENTITY_DESCRIPTION = ClimateEntityDescription(
 )
 
 
+def _is_c800_device(device: dict[str, Any]) -> bool:
+    """Return True if device model is C800WiFi."""
+    model = device.get("model")
+    if isinstance(model, dict):
+        return str(model.get("modello")) == "C800WiFi"
+    return str(model) == "C800WiFi"
+
+
 async def async_setup_entry(
     hass,  # noqa: ANN001, ARG001
     entry: IntelliclimaConfigEntry,
@@ -32,6 +40,7 @@ async def async_setup_entry(
     async_add_entities(
         IntelliclimaClimate(entry.runtime_data.coordinator, device, ENTITY_DESCRIPTION)
         for device in entry.runtime_data.coordinator.data.devices
+        if _is_c800_device(device)
     )
 
 

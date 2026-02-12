@@ -111,6 +111,7 @@ class IntelliclimaApiClient:
         self._user_id: str | None = None
         self._house_id: str | None = None
         self._device_ids: list[str] = []
+        self._eco_ids: list[str] = []
 
     def _url(self, path: str) -> str:
         """Build full API URL as server + mono folder + path."""
@@ -187,6 +188,7 @@ class IntelliclimaApiClient:
         if not isinstance(houses, dict) or not houses:
             self._house_id = None
             self._device_ids = []
+            self._eco_ids = []
             return
 
         house_id = next(iter(houses.keys()))
@@ -200,16 +202,25 @@ class IntelliclimaApiClient:
                 if isinstance(device, dict) and device.get("id")
             )
 
+        eco_ids_payload = payload.get("ecoIDs", [])
+        eco_ids = (
+            [str(item) for item in eco_ids_payload if item not in (None, "")]
+            if isinstance(eco_ids_payload, list)
+            else []
+        )
+
         self._house_id = str(house_id)
         self._device_ids = device_ids
+        self._eco_ids = eco_ids
         LOGGER.debug(
-            "Intelliclima discovered house_id=%s with %s devices",
+            "Intelliclima discovered house_id=%s with generic_ids=%s eco_ids=%s",
             self._house_id,
             len(self._device_ids),
+            len(self._eco_ids),
         )
 
     async def async_get_device(self, device_id: str) -> list[dict[str, Any]]:
-        """Get single device payload from sync endpoint."""
+        """Get single device payload from sync/cronos380 endpoint."""
         device_url = self._url("sync/cronos380")
         body = {
             "IDs": device_id,
@@ -230,38 +241,59 @@ class IntelliclimaApiClient:
             msg = "Authentication expired"
             raise IntelliclimaApiClientAuthenticationError(msg)
 
-        data = payload.get("data", [])
-        if not isinstance(data, list):
+        return self._normalize_device_data(payload.get("data", []))
+
+    async def async_get_eco_devices(self) -> list[dict[str, Any]]:
+        """Get ECO/RHINO devices from sync/cronos400 endpoint."""
+        if not self._eco_ids:
             return []
 
-        normalized: list[dict[str, Any]] = []
-        for raw_device in data:
-            if not isinstance(raw_device, dict):
-                continue
-            device = dict(raw_device)
-            if isinstance(device.get("model"), str):
-                with suppress(json.JSONDecodeError):
-                    device["model"] = json.loads(device["model"])
-            if isinstance(device.get("config"), str):
-                with suppress(json.JSONDecodeError):
-                    device["config"] = json.loads(device["config"])
-            normalized.append(device)
+        eco_url = self._url("sync/cronos400")
+        body = {
+            "IDs": "",
+            "ECOs": ",".join(self._eco_ids),
+            "C900s": "",
+            "RHINOs": "",
+            "ECO3s": "",
+            "includi_eco": True,
+            "includi_ledot": True,
+            "includi_c900": True,
+            "includi_rhino": True,
+            "includi_eco3": True,
+        }
+        LOGGER.debug("Fetching Intelliclima ECO devices for ECOs=%s", body["ECOs"])
+        payload = await self._request(
+            "post",
+            eco_url,
+            data=body,
+            headers=self._auth_headers(),
+        )
+        LOGGER.debug("ECO devices raw response: %s", payload)
 
-        return normalized
+        if payload.get("status") == "NO_AUTH":
+            msg = "Authentication expired"
+            raise IntelliclimaApiClientAuthenticationError(msg)
+
+        return self._normalize_device_data(payload.get("data", []))
 
     async def async_get_devices(self) -> list[dict[str, Any]]:
-        """Return all configured devices by querying each device id."""
+        """Return all configured devices from supported sync endpoints."""
         if not self._auth_token or not self._user_id:
             await self.async_authenticate()
 
-        if not self._device_ids:
+        if not self._device_ids and not self._eco_ids:
             await self.async_set_house_and_device_ids()
 
         devices: list[dict[str, Any]] = []
+        devices.extend(await self.async_get_eco_devices())
+
+        # fallback for legacy non-ECO devices
         for device_id in self._device_ids:
-            if not device_id.isdigit() or int(device_id) <= 0:
+            if not str(device_id).lstrip("-").isdigit():
                 continue
-            devices.extend(await self.async_get_device(device_id))
+            if int(device_id) <= 0:
+                continue
+            devices.extend(await self.async_get_device(str(device_id)))
 
         LOGGER.debug("Fetched %s Intelliclima device payload(s)", len(devices))
         return devices
@@ -366,15 +398,35 @@ class IntelliclimaApiClient:
             self._user_id = None
             self._house_id = None
             self._device_ids = []
+            self._eco_ids = []
             raise
         except Exception as exception:  # pylint: disable=broad-except
             msg = f"Unexpected error during API request - {exception}"
             raise IntelliclimaApiClientError(msg) from exception
 
+    def _normalize_device_data(self, data: Any) -> list[dict[str, Any]]:
+        """Normalize response data to list of parsed device dicts."""
+        if not isinstance(data, list):
+            return []
+
+        normalized: list[dict[str, Any]] = []
+        for raw_device in data:
+            if not isinstance(raw_device, dict):
+                continue
+            device = dict(raw_device)
+            if isinstance(device.get("model"), str):
+                with suppress(json.JSONDecodeError):
+                    device["model"] = json.loads(device["model"])
+            if isinstance(device.get("config"), str):
+                with suppress(json.JSONDecodeError):
+                    device["config"] = json.loads(device["config"])
+            normalized.append(device)
+        return normalized
+
     @staticmethod
     def get_current_temperature(device: dict[str, Any]) -> float | None:
         """Parse current temperature from the Intelliclima device."""
-        return _as_float(device.get("t_amb"))
+        return _as_float(device.get("t_amb") or device.get("tamb"))
 
     @staticmethod
     def get_target_temperature(device: dict[str, Any]) -> float | None:

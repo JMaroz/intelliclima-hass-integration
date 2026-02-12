@@ -9,7 +9,8 @@ The integration uses the Intelliclima API request model based on observed endpoi
 1. `user/login/{username}/{sha256(password)}` with a device-info JSON body
 2. `casa/elenco2/{userId}` to obtain houses and device IDs (with `Tokenid`/`Token` headers)
 3. `sync/cronos380` with `IDs`, `ECOs`, `includi_eco`, `includi_ledot` to fetch device details
-4. `C800/scrivi/` for write operations (`serial`, `w_Tset_Tman`, `mode`) for `C800WiFi`
+4. `sync/cronos400` for ECOCOMFORT data (`ECOs` populated from `ecoIDs`)
+5. `C800/scrivi/` for write operations (`serial`, `w_Tset_Tman`, `mode`) for `C800WiFi`
 
 The integration also parses `model` and `config` if they are JSON-encoded strings.
 
@@ -17,8 +18,9 @@ The integration also parses `model` and `config` if they are JSON-encoded string
 
 - Config flow with username/password
 - Configurable API base URL and API folder path
-- Climate entities for discovered Intelliclima devices
-- Humidity and outdoor temperature sensors
+- Climate entities for C800WiFi devices
+- ECOCOMFORT fan entities (state/speed from `cronos400`)
+- ECOCOMFORT sensors (temperature `tamb`, humidity `rh`, VOC `voc_state`)
 - C800WiFi write support for setpoint/mode
 
 ## Run in local development environment
