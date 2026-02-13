@@ -1,6 +1,42 @@
 # Intelliclima Home Assistant integration
 
-This repository contains a custom Home Assistant integration for Intelliclima devices.
+## About
+
+This custom component connects Intelliclima cloud devices to Home Assistant.
+
+It provides config-flow setup, polls the Intelliclima API, and exposes entities for supported devices so you can monitor and control them from Home Assistant dashboards and automations.
+
+Based on the current codebase, this integration includes:
+
+- `climate` entities for C800WiFi devices
+- `fan` entities for ECOCOMFORT ventilation units
+- `select` entities for ECOCOMFORT ventilation mode and speed
+- `sensor` entities for ECOCOMFORT telemetry such as temperature, humidity, and VOC state
+
+The integration is implemented as a cloud-polling custom component with UI configuration (username/password plus optional API URL/path overrides).
+
+## How to install
+
+### HACS (recommended)
+
+1. Make sure [HACS](https://hacs.xyz/) is installed in Home Assistant.
+2. Open **HACS → Integrations**.
+3. Click the three-dot menu (top-right) → **Custom repositories**.
+4. Add this repository URL:
+   - `https://github.com/JMaroz/Intelliclima-hass-integration`
+5. Select category **Integration** and click **Add**.
+6. Search for **Intelliclima Home Assistant integration** in HACS and install it.
+7. Restart Home Assistant.
+8. Go to **Settings → Devices & Services → Add Integration**.
+9. Search for **Intelliclima** and complete the configuration form.
+
+### Manual installation
+
+1. Copy `custom_components/intelliclima` into your Home Assistant config folder:
+   - `<HA_CONFIG>/custom_components/intelliclima`
+2. Restart Home Assistant.
+3. Go to **Settings → Devices & Services → Add Integration**.
+4. Search for **Intelliclima** and configure credentials.
 
 ## Implemented API flow
 
@@ -60,29 +96,18 @@ Once Home Assistant is running, open:
 
 Finish onboarding/login, then add the integration.
 
-## Add the component to Home Assistant
+## Add the component in Home Assistant (local dev runtime)
 
-You can add this custom component either from this repo directly (dev mode) or into an existing Home Assistant instance.
+If you run Home Assistant from this repository with `./scripts/develop`:
 
-### Option A: Use this repository as your HA runtime (recommended for local testing)
-
-1. Start HA with `./scripts/develop`.
-2. In Home Assistant UI go to **Settings → Devices & Services**.
-3. Click **Add Integration**.
-4. Search for **Intelliclima**.
-5. Enter:
+1. In Home Assistant UI go to **Settings → Devices & Services**.
+2. Click **Add Integration**.
+3. Search for **Intelliclima**.
+4. Enter:
    - **Username**
    - **Password**
    - **API Base URL** (default usually works)
    - **API Folder Path** (default `/server_v1_mono/api/`, change only if your account uses a different API family/path)
-
-### Option B: Install into an existing Home Assistant instance
-
-1. Copy folder `custom_components/intelliclima` into your HA config folder:
-   - `<HA_CONFIG>/custom_components/intelliclima`
-2. Restart Home Assistant.
-3. Go to **Settings → Devices & Services → Add Integration**.
-4. Search for **Intelliclima** and configure credentials.
 
 ## Manual API testing (without Home Assistant)
 
@@ -189,24 +214,6 @@ Under the hood the integration builds and sends `eco/send/` payloads with this f
 Where `SSSS` is serial, `MM` is mode byte, `SS` is speed byte, and `CC` is CRC-8 checksum.
 
 Write responses are validated against the vendor echo payload (example: `{"status":"OK","serial":"00000674","trama":"0A00000674000E2F005000000410B20D"}`), so mismatched `serial`/`trama` now raise an integration error instead of silently succeeding.
-
-## Troubleshooting
-
-- If login fails with a DNS resolver error similar to `Channel.getaddrinfo() takes 3 positional arguments...`, update to the latest version of this integration.
-  The Intelliclima integration now forces a threaded DNS resolver for its own HTTP session to avoid that aiodns incompatibility.
-- If you still see the same traceback under **other integrations** (for example `homeassistant_alerts`), that is a Home Assistant environment resolver issue, not specific to Intelliclima.
-  In local dev environments, reinstalling/upgrading resolver deps usually fixes it:
-
-  ```bash
-  pip install --upgrade aiodns pycares aiohttp-asyncmdnsresolver
-  ```
-
-  If it persists, remove `aiodns` so aiohttp falls back to threaded DNS:
-
-  ```bash
-  pip uninstall -y aiodns
-  ```
-
 
 ## Enable Intelliclima debug logs
 
