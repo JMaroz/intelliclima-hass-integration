@@ -92,6 +92,17 @@ def _normalize_eco_serial(serial: str) -> str:
     return serial_digits.zfill(8)
 
 
+def _is_expected_eco_trama(response_trama: str, expected_trama: str) -> bool:
+    """Return True when response trama acknowledges expected payload.
+
+    Intelliclima may prepend informational tokens (for example `SERVERECO`) in
+    the `trama` response field before echoing the frame.
+    """
+    if not response_trama:
+        return True
+    return response_trama == expected_trama or response_trama.endswith(expected_trama)
+
+
 def _raise_authentication_error() -> None:
     """Raise normalized auth error."""
     msg = "Invalid credentials"
@@ -432,7 +443,7 @@ class IntelliclimaApiClient:
             )
             raise IntelliclimaApiClientError(msg)
 
-        if response_trama and response_trama != trama:
+        if not _is_expected_eco_trama(response_trama, trama):
             msg = (
                 "ECO write acknowledged with unexpected trama. "
                 f"expected={trama} got={response_trama}"
