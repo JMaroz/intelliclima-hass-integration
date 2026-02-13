@@ -150,9 +150,13 @@ class IntelliclimaEcoSpeedSelect(_IntelliclimaEcoSelectBase):
     @property
     def current_option(self) -> str | None:
         """Return selected ventilation speed."""
+        speed_set = self._to_int(self._state_data.get("speed_set"))
+        if speed_set == SPEED_OPTION_TO_VALUE["auto"]:
+            return "auto"
+
         speed = self._to_int(self._state_data.get("speed_state"))
         if speed is None:
-            speed = self._to_int(self._state_data.get("speed_set"))
+            speed = speed_set
         if speed is None:
             return None
         return SPEED_VALUE_TO_OPTION.get(speed)
