@@ -23,7 +23,7 @@ The integration is implemented as a cloud-polling custom component with UI confi
 2. Open **HACS → Integrations**.
 3. Click the three-dot menu (top-right) → **Custom repositories**.
 4. Add this repository URL:
-   - `https://github.com/JMaroz/Intelliclima-hass-integration`
+   - `https://github.com/JMaroz/intelliclima-hass-integration`
 5. Select category **Integration** and click **Add**.
 6. Search for **Intelliclima Home Assistant integration** in HACS and install it.
 7. Restart Home Assistant.
