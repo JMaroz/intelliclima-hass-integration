@@ -1,9 +1,8 @@
 {
   "name": "Intelliclima",
-  "hacs": "2.0.5",
-  "homeassistant": "2025.2.4",
-  "render_readme": true,
   "domains": [
     "intelliclima"
-  ]
+  ],
+  "homeassistant": "2024.1.0",
+  "render_readme": true
 }
