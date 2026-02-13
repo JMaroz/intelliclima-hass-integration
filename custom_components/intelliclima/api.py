@@ -204,9 +204,9 @@ class IntelliclimaApiClient:
         hashed_password = hashlib.sha256(self._password.encode()).hexdigest()
         login_url = self._url(f"user/login/{self._username}/{hashed_password}")
         login_body = {
-            "manufacturer": "Homebridge",
+            "manufacturer": "HomeAssistant",
             "model": "NodeJS",
-            "platform": "IntelliClimaHomebridge",
+            "platform": "intelliclima-hass-integration",
             "version": "1.0.0",
             "serial": "unknown",
             "uuid": str(uuid4()).upper(),
