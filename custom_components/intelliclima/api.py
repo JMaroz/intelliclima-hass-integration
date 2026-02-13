@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import shlex
@@ -20,6 +21,12 @@ SERIAL_MAX_LENGTH = 8
 CRC8_HIGH_BIT_MASK = 0x80
 CRC8_POLYNOMIAL = 0x31
 CRC8_XOROUT = 0xC5
+ECO_MODE_ALTERNATING_SENSOR = 4
+ECO_SPEED_AUTO = 16
+ECO_COMMAND_WAIT = "WAIT"
+ECO_COMMAND_ERROR_NACK = "ERROR NACK"
+ECO_COMMAND_POLL_INTERVAL_SECONDS = 1.0
+ECO_COMMAND_POLL_ATTEMPTS = 12
 
 
 class IntelliclimaApiClientError(Exception):
@@ -404,11 +411,45 @@ class IntelliclimaApiClient:
         """Validate credentials during config flow."""
         await self.async_get_devices()
 
+    def _get_eco_command_for_serial(
+        self, serial: str, devices: list[dict[str, Any]]
+    ) -> str | None:
+        """Return normalized ECO `command` state for a given serial."""
+        normalized_serial = _normalize_eco_serial(serial)
+        for device in devices:
+            if not isinstance(device, dict):
+                continue
+            device_serial = str(device.get("crono_sn") or device.get("multi_sn") or "")
+            if not device_serial:
+                continue
+            with suppress(IntelliclimaApiClientError):
+                if _normalize_eco_serial(device_serial) != normalized_serial:
+                    continue
+                command = str(device.get("command") or "").strip().upper()
+                return command or None
+        return None
+
+    async def _async_wait_for_eco_command_ack(self, serial: str) -> str | None:
+        """Poll ECO devices until command moves from WAIT to final ACK/NACK."""
+        final_command: str | None = None
+        for _ in range(ECO_COMMAND_POLL_ATTEMPTS):
+            eco_devices = await self.async_get_eco_devices()
+            command = self._get_eco_command_for_serial(serial, eco_devices)
+            if command:
+                final_command = command
+            if command and command != ECO_COMMAND_WAIT:
+                break
+            await asyncio.sleep(ECO_COMMAND_POLL_INTERVAL_SECONDS)
+        return final_command
+
     async def async_set_eco_state(self, serial: str, mode: int, speed: int) -> None:
         """Set ECO ventilation mode and speed with raw `trama` command."""
         if not serial:
             msg = "Missing ECO serial"
             raise IntelliclimaApiClientError(msg)
+
+        if speed == ECO_SPEED_AUTO:
+            mode = ECO_MODE_ALTERNATING_SENSOR
 
         set_url = self._url("eco/send/")
         trama = _eco_trama(serial=serial, mode=mode, speed=speed)
@@ -461,6 +502,14 @@ class IntelliclimaApiClient:
             speed,
             response_status,
         )
+
+        final_command = await self._async_wait_for_eco_command_ack(serial)
+        if final_command == ECO_COMMAND_ERROR_NACK:
+            msg = (
+                "ECO command was rejected by device (ERROR NACK). "
+                f"serial={serial} mode={mode} speed={speed}"
+            )
+            raise IntelliclimaApiClientError(msg)
 
     async def _request(
         self,
