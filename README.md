@@ -38,40 +38,17 @@ The integration is implemented as a cloud-polling custom component with UI confi
 3. Go to **Settings → Devices & Services → Add Integration**.
 4. Search for **Intelliclima** and configure credentials.
 
-## Implemented API flow
-
-The integration uses the Intelliclima API request model based on observed endpoints and payloads:
-
-1. `user/login/{username}/{sha256(password)}` with a device-info JSON body
-2. `casa/elenco2/{userId}` to obtain houses and device IDs (with `Tokenid`/`Token` headers)
-3. `sync/cronos380` with `IDs`, `ECOs`, `includi_eco`, `includi_ledot` to fetch device details
-4. `sync/cronos400` for ECOCOMFORT data (`ECOs` populated from `ecoIDs`)
-5. `C800/scrivi/` for write operations (`serial`, `w_Tset_Tman`, `mode`) for `C800WiFi`
-
-The integration also parses `model` and `config` if they are JSON-encoded strings.
-
-## Features
-
-- Config flow with username/password
-- Configurable API base URL and API folder path
-- Climate entities for C800WiFi devices
-- ECOCOMFORT fan entities (state/speed from `cronos400`)
-- ECOCOMFORT sensors (temperature `tamb`, humidity `rh`, VOC `voc_state`)
-- C800WiFi write support for setpoint/mode
-
 ## Credits
 
 This repository is inspired by the Homebridge plugin [`ruizmarc/homebridge-intelliclima`](https://github.com/ruizmarc/homebridge-intelliclima), which helped document Intelliclima cloud endpoints and payload behavior.
 
-Main changes in this repository compared to the original Homebridge project:
+Main changes:
 
 - **Home Assistant native integration** instead of Homebridge accessory/platform plugin architecture
-- **Config flow + UI setup** in Home Assistant (username/password and API overrides)
+- **Config flow + UI setup** in Home Assistant
 - **Entity model adapted to HA** (`climate`, `fan`, `select`, `sensor`) with polling-based updates
-- **ECOCOMFORT UX split into dedicated controls** (fan power + separate mode/speed selects)
-- **Additional diagnostics and normalization logic** for ECO speed/mode state mapping in Home Assistant
-- **Local development tooling and API scripts** tailored for HA custom component development and troubleshooting
-
+- **ECOCOMFORT Fan with into dedicated controls** (fan power + separate mode/speed selects)
+  
 ## Run in local development environment
 
 ### 1) Clone and install dependencies
@@ -109,7 +86,7 @@ Once Home Assistant is running, open:
 
 Finish onboarding/login, then add the integration.
 
-## Add the component in Home Assistant (local dev runtime)
+### 4) Add the component in Home Assistant (local dev runtime)
 
 If you run Home Assistant from this repository with `./scripts/develop`:
 
@@ -119,10 +96,28 @@ If you run Home Assistant from this repository with `./scripts/develop`:
 4. Enter:
    - **Username**
    - **Password**
-   - **API Base URL** (default usually works)
-   - **API Folder Path** (default `/server_v1_mono/api/`, change only if your account uses a different API family/path)
 
-## Manual API testing (without Home Assistant)
+### Features
+
+- Config flow with username/password
+- Configurable API base URL and API folder path
+- Climate entities for C800WiFi devices
+- ECOCOMFORT fan entities (state/speed from `cronos400`)
+- ECOCOMFORT sensors (temperature `tamb`, humidity `rh`, VOC `voc_state`)
+- C800WiFi write support for setpoint/mode
+  
+### Implemented API
+
+The integration uses the Intelliclima API request model based on observed endpoints and payloads:
+
+1. `user/login/{username}/{sha256(password)}` with a device-info JSON body
+2. `casa/elenco2/{userId}` to obtain houses and device IDs (with `Tokenid`/`Token` headers)
+3. `sync/cronos380` for `IDs` to fetch device details
+4. `sync/cronos400` for ECOCOMFORT data (`ECOs` populated from `ecoIDs`)
+5. `C800/scrivi/` for write operations (`serial`, `w_Tset_Tman`, `mode`) for `C800WiFi`
+6. `eco/send/` for write operations (`mode`, `speed`) for ECOCOMFORT
+
+#### Manual API testing (without Home Assistant)
 
 You can test the Intelliclima API directly with:
 
@@ -141,8 +136,6 @@ Optional flags:
 Known API folders:
 - `/server_v1_mono/api/`
 - `/server_v1_multi/api/`
-
-
 
 ## ECOCOMFORT fan behavior (mode + speed mapping)
 
@@ -181,9 +174,9 @@ In Home Assistant:
 
 `132` is treated as a runtime state variant of sensor-driven alternating mode.
 
-### Reverse-engineered ECO `trama` body pattern
+### ECO `trama` body pattern for write operation
 
-From captured `eco/send/` requests, the body payload follows this frame layout:
+For `eco/send/` requests, the body payload follows this frame layout:
 
 ```text
 trama = 0A 0000 SSSS 000E2F0050 0000 MM SS CC 0D
