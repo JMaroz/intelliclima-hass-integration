@@ -59,6 +59,19 @@ The integration also parses `model` and `config` if they are JSON-encoded string
 - ECOCOMFORT sensors (temperature `tamb`, humidity `rh`, VOC `voc_state`)
 - C800WiFi write support for setpoint/mode
 
+## Credits
+
+This repository is inspired by the Homebridge plugin [`ruizmarc/homebridge-intelliclima`](https://github.com/ruizmarc/homebridge-intelliclima), which helped document Intelliclima cloud endpoints and payload behavior.
+
+Main changes in this repository compared to the original Homebridge project:
+
+- **Home Assistant native integration** instead of Homebridge accessory/platform plugin architecture
+- **Config flow + UI setup** in Home Assistant (username/password and API overrides)
+- **Entity model adapted to HA** (`climate`, `fan`, `select`, `sensor`) with polling-based updates
+- **ECOCOMFORT UX split into dedicated controls** (fan power + separate mode/speed selects)
+- **Additional diagnostics and normalization logic** for ECO speed/mode state mapping in Home Assistant
+- **Local development tooling and API scripts** tailored for HA custom component development and troubleshooting
+
 ## Run in local development environment
 
 ### 1) Clone and install dependencies
