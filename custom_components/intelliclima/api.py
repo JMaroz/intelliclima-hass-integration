@@ -15,6 +15,12 @@ import async_timeout
 
 from .const import DEFAULT_API_FOLDER, DEFAULT_BASE_URL, LOGGER
 
+BYTE_MAX_VALUE = 0xFF
+SERIAL_MAX_LENGTH = 8
+CRC8_HIGH_BIT_MASK = 0x80
+CRC8_POLYNOMIAL = 0x31
+CRC8_XOROUT = 0xC5
+
 
 class IntelliclimaApiClientError(Exception):
     """Exception to indicate a general API error."""
@@ -56,40 +62,49 @@ def _crc8_eco(payload: bytes) -> int:
     for byte in payload:
         crc ^= byte
         for _ in range(8):
-            if crc & 0x80:
-                crc = ((crc << 1) & 0xFF) ^ 0x31
-            else:
-                crc = (crc << 1) & 0xFF
-    return crc ^ 0xC5
+            crc = (
+                ((crc << 1) & BYTE_MAX_VALUE) ^ CRC8_POLYNOMIAL
+                if crc & CRC8_HIGH_BIT_MASK
+                else (crc << 1) & BYTE_MAX_VALUE
+            )
+    return crc ^ CRC8_XOROUT
 
 
 def _eco_trama(serial: str, mode: int, speed: int) -> str:
     """Build ECO `trama` payload for `eco/send/` endpoint."""
-    if mode < 0 or mode > 0xFF:
+    if mode < 0 or mode > BYTE_MAX_VALUE:
         msg = f"Invalid ECO mode byte: {mode}"
         raise IntelliclimaApiClientError(msg)
-    if speed < 0 or speed > 0xFF:
+    if speed < 0 or speed > BYTE_MAX_VALUE:
         msg = f"Invalid ECO speed byte: {speed}"
         raise IntelliclimaApiClientError(msg)
 
     normalized_serial = _normalize_eco_serial(serial)
     serial_hex = normalized_serial[-4:]
-    frame_without_checksum = (
-        f"0A0000{serial_hex}000E2F00500000{mode:02X}{speed:02X}"
-    )
+    frame_without_checksum = f"0A0000{serial_hex}000E2F00500000{mode:02X}{speed:02X}"
     checksum = _crc8_eco(bytes.fromhex(frame_without_checksum))
     return f"{frame_without_checksum}{checksum:02X}0D"
-
-
 
 
 def _normalize_eco_serial(serial: str) -> str:
     """Normalize ECO serial to 8-digit string returned by API responses."""
     serial_digits = "".join(ch for ch in str(serial) if ch.isdigit())
-    if not serial_digits or len(serial_digits) > 8:
+    if not serial_digits or len(serial_digits) > SERIAL_MAX_LENGTH:
         msg = f"Invalid ECO serial format: {serial}"
         raise IntelliclimaApiClientError(msg)
-    return serial_digits.zfill(8)
+    return serial_digits.zfill(SERIAL_MAX_LENGTH)
+
+
+def _is_expected_eco_trama(response_trama: str, expected_trama: str) -> bool:
+    """
+    Return True when response trama acknowledges expected payload.
+
+    Intelliclima may prepend informational tokens (for example `SERVERECO`) in
+    the `trama` response field before echoing the frame.
+    """
+    if not response_trama:
+        return True
+    return response_trama == expected_trama or response_trama.endswith(expected_trama)
 
 
 def _raise_authentication_error() -> None:
@@ -432,7 +447,7 @@ class IntelliclimaApiClient:
             )
             raise IntelliclimaApiClientError(msg)
 
-        if response_trama and response_trama != trama:
+        if not _is_expected_eco_trama(response_trama, trama):
             msg = (
                 "ECO write acknowledged with unexpected trama. "
                 f"expected={trama} got={response_trama}"

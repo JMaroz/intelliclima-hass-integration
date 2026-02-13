@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .data import IntelliclimaConfigEntry
 
 MODE_ALTERNATING_SENSOR = 4
+MODE_REPORTED_AUTO_THRESHOLD = 128
 
 MODE_VALUE_TO_OPTION = {
     1: "outdoor_intake",
@@ -92,7 +93,7 @@ class _IntelliclimaEcoSelectBase(IntelliclimaEntity, SelectEntity):
         mode = self._to_int(self._state_data.get("mode_state"))
         if mode is None:
             mode = self._to_int(self._state_data.get("mode_set"))
-        if mode is None or mode >= 128:
+        if mode is None or mode >= MODE_REPORTED_AUTO_THRESHOLD:
             return MODE_ALTERNATING_SENSOR
         return mode
 
@@ -116,10 +117,11 @@ class _IntelliclimaEcoSelectBase(IntelliclimaEntity, SelectEntity):
 class IntelliclimaEcoModeSelect(_IntelliclimaEcoSelectBase):
     """Select entity for ECO ventilation mode."""
 
-    _attr_options = list(MODE_OPTION_TO_VALUE.keys())
+    _attr_options: ClassVar[list[str]] = list(MODE_OPTION_TO_VALUE.keys())
 
     @property
     def current_option(self) -> str | None:
+        """Return selected ventilation mode."""
         mode = self._to_int(self._state_data.get("mode_state"))
         if mode is None:
             mode = self._to_int(self._state_data.get("mode_set"))
@@ -128,6 +130,7 @@ class IntelliclimaEcoModeSelect(_IntelliclimaEcoSelectBase):
         return MODE_VALUE_TO_OPTION.get(mode)
 
     async def async_select_option(self, option: str) -> None:
+        """Select a ventilation mode option."""
         if not self._serial:
             return
         mode = MODE_OPTION_TO_VALUE.get(option)
@@ -142,10 +145,11 @@ class IntelliclimaEcoModeSelect(_IntelliclimaEcoSelectBase):
 class IntelliclimaEcoSpeedSelect(_IntelliclimaEcoSelectBase):
     """Select entity for ECO fan speed."""
 
-    _attr_options = list(SPEED_OPTION_TO_VALUE.keys())
+    _attr_options: ClassVar[list[str]] = list(SPEED_OPTION_TO_VALUE.keys())
 
     @property
     def current_option(self) -> str | None:
+        """Return selected ventilation speed."""
         speed = self._to_int(self._state_data.get("speed_state"))
         if speed is None:
             speed = self._to_int(self._state_data.get("speed_set"))
@@ -154,6 +158,7 @@ class IntelliclimaEcoSpeedSelect(_IntelliclimaEcoSelectBase):
         return SPEED_VALUE_TO_OPTION.get(speed)
 
     async def async_select_option(self, option: str) -> None:
+        """Select a ventilation speed option."""
         if not self._serial:
             return
         speed = SPEED_OPTION_TO_VALUE.get(option)

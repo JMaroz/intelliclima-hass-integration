@@ -1,8 +1,8 @@
 """
 Fan platform for Intelliclima ECOCOMFORT devices.
 
-This entity intentionally exposes only power controls in the main fan card.
-Mode/speed writes are handled by dedicated Select entities to provide a
+This entity intentionally exposes only fan state and attributes.
+Mode and speed writes are handled by dedicated Select entities to provide a
 clear dropdown UX in Home Assistant frontend.
 """
 
@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.fan import FanEntity, FanEntityDescription, FanEntityFeature
+from homeassistant.components.fan import (
+    FanEntity,
+    FanEntityDescription,
+    FanEntityFeature,
+)
 
 from .entity import IntelliclimaEntity
 
@@ -26,7 +30,6 @@ TRANSLATED_FAN_LEVEL_MIN = 16
 TRANSLATED_FAN_LEVEL_MAX = 19
 TRANSLATED_FAN_LEVEL_OFFSET = 15
 
-MODE_ALTERNATING_SENSOR = 4
 
 ENTITY_DESCRIPTION = FanEntityDescription(
     key="ecocomfort_fan",
@@ -61,7 +64,7 @@ async def async_setup_entry(
 class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
     """Intelliclima ECOCOMFORT fan entity."""
 
-    _attr_supported_features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
+    _attr_supported_features = FanEntityFeature(0)
 
     def __init__(
         self,
@@ -99,115 +102,11 @@ class IntelliclimaEcoComfortFan(IntelliclimaEntity, FanEntity):
 
         return max(MIN_NATIVE_FAN_LEVEL, min(MAX_NATIVE_FAN_LEVEL, speed))
 
-    def _mode_value(self) -> int:
-        """Return writable mode value (fallback to alternating sensor)."""
-        mode_state = self._to_int(self._state_data.get("mode_state"))
-        mode_set = self._to_int(self._state_data.get("mode_set"))
-        mode = mode_state if mode_state is not None else mode_set
-        if mode is None or mode >= 128:
-            return MODE_ALTERNATING_SENSOR
-        return mode
-
-    async def _async_apply(self, *, mode: int, speed: int) -> None:
-        """Apply ECO mode/speed and refresh coordinator state."""
-        await self.coordinator.config_entry.runtime_data.client.async_set_eco_state(
-            serial=self._serial,
-            mode=mode,
-            speed=speed,
-        )
-        await self.coordinator.async_request_refresh()
-
     @property
     def is_on(self) -> bool | None:
         """Return whether fan is active."""
         level = self._fan_level()
         return None if level is None else level > 0
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on fan with last known (or fallback) mode/speed."""
-        del kwargs
-        if not self._serial:
-            return
-
-        speed = self._fan_level() or 1
-        if speed <= 0:
-            speed = 1
-        await self._async_apply(mode=self._mode_value(), speed=speed)
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off fan by setting mode/speed to 0."""
-        del kwargs
-        if not self._serial:
-            return
-        await self._async_apply(mode=0, speed=0)
-
-    async def _async_apply(self, *, mode: int, speed: int) -> None:
-        """Apply ECO mode/speed and refresh coordinator state."""
-        await self.coordinator.config_entry.runtime_data.client.async_set_eco_state(
-            serial=self._serial,
-            mode=mode,
-            speed=speed,
-        )
-        await self.coordinator.async_request_refresh()
-
-    async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set ECO ventilation mode from Home Assistant preset."""
-        if not self._serial:
-            return
-
-        mode_by_preset = {
-            value: key for key, value in MODE_PRESET_MAP.items() if key < 128
-        }
-        mode = mode_by_preset.get(preset_mode)
-        if mode is None:
-            return
-
-        current_speed = self._fan_level()
-        speed = MAX_NATIVE_FAN_LEVEL if current_speed is None else current_speed
-        if speed <= 0:
-            speed = 1
-
-        await self._async_apply(mode=mode, speed=speed)
-
-    async def async_set_percentage(self, percentage: int) -> None:
-        """Set ECO fan speed percentage (mapped to native 0..4 levels)."""
-        if not self._serial:
-            return
-
-        pct = max(0, min(100, int(percentage)))
-        speed = round((pct / 100) * MAX_NATIVE_FAN_LEVEL)
-        speed = max(MIN_NATIVE_FAN_LEVEL, min(MAX_NATIVE_FAN_LEVEL, speed))
-
-        mode = self._mode_value()
-        if mode is None or mode >= 128:
-            mode = MODE_ALTERNATING_SENSOR
-
-        await self._async_apply(mode=mode, speed=speed)
-
-    async def async_turn_on(
-        self,
-        percentage: int | None = None,
-        preset_mode: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """Turn on fan and optionally set speed/preset in one call."""
-        del kwargs
-        if preset_mode is not None:
-            await self.async_set_preset_mode(preset_mode)
-            if percentage is not None:
-                await self.async_set_percentage(percentage)
-            return
-
-        if percentage is None:
-            percentage = 25
-        await self.async_set_percentage(percentage)
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off fan by setting speed and mode to 0."""
-        del kwargs
-        if not self._serial:
-            return
-        await self._async_apply(mode=0, speed=0)
 
     @property
     def extra_state_attributes(self) -> dict[str, str | int]:
