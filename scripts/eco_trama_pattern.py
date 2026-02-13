@@ -1,19 +1,24 @@
-#!/usr/bin/env python3
-"""Analyze Intelliclima ECO curl captures and infer trama body pattern.
+"""
+Analyze Intelliclima ECO curl captures and infer trama body pattern.
 
-Input: JSON object where each key is a human-friendly name and value is a full curl command.
-The script extracts `trama`, decodes key fields, and prints a compact pattern summary.
+Input: JSON object where each key is a human-friendly name and value is a
+full curl command. The script extracts `trama`, decodes key fields, and logs a
+compact pattern summary.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
+LOGGER = logging.getLogger(__name__)
 TRAMA_RE = re.compile(r'"trama"\s*:\s*"([0-9A-Fa-f]+)"')
+MIN_TRAMA_LENGTH = 30
 
 MODE_MAP = {
     0x00: "power_off",
@@ -34,6 +39,7 @@ SPEED_MAP = {
 
 
 def _extract_trama(curl_command: str) -> str | None:
+    """Extract trama hex payload from a curl command string."""
     match = TRAMA_RE.search(curl_command)
     if match:
         return match.group(1).upper()
@@ -41,7 +47,8 @@ def _extract_trama(curl_command: str) -> str | None:
 
 
 def _decode_trama(trama: str) -> dict[str, int | str]:
-    if len(trama) < 30:
+    """Decode relevant fields from trama payload."""
+    if len(trama) < MIN_TRAMA_LENGTH:
         msg = f"Unexpected trama length ({len(trama)}): {trama}"
         raise ValueError(msg)
 
@@ -64,7 +71,51 @@ def _decode_trama(trama: str) -> dict[str, int | str]:
     }
 
 
+def _build_summary(rows: list[tuple[str, str, dict[str, int | str]]]) -> str:
+    """Build a text summary for decoded rows and observed pattern."""
+    starts = Counter(r[2]["start"] for r in rows)
+    middles = Counter(r[2]["fixed_middle"] for r in rows)
+    ends = Counter(r[2]["end"] for r in rows)
+
+    lines = [
+        "Detected pattern (from observed payloads):",
+        "  trama = <start><0000><serial><fixed_middle><mode><speed><checksum><end>",
+        f"  start candidates: {dict(starts)}",
+        f"  fixed_middle candidates: {dict(middles)}",
+        f"  end candidates: {dict(ends)}",
+        "",
+        "Decoded rows:",
+    ]
+
+    for name, trama, decoded in rows:
+        mode = int(decoded["mode"])
+        speed = int(decoded["speed"])
+        mode_name = MODE_MAP.get(mode, "unknown")
+        speed_name = SPEED_MAP.get(speed, "unknown")
+        lines.append(
+            f"- {name}: serial={decoded['serial']} mode=0x{mode:02X}({mode_name}) "
+            f"speed=0x{speed:02X}({speed_name}) checksum=0x{decoded['checksum']}"
+            f" trama={trama}"
+        )
+
+    mode_map = {f"0x{k:02X}": v for k, v in MODE_MAP.items()}
+    speed_map = {f"0x{k:02X}": v for k, v in SPEED_MAP.items()}
+    lines.extend(
+        [
+            "",
+            f"Mode byte map (observed): {mode_map}",
+            f"Speed byte map (observed): {speed_map}",
+            "Note: checksum changes with frame content and must be computed",
+            "correctly by protocol rules.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def main() -> None:
+    """Parse input payload and log inferred trama pattern details."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "json_file",
@@ -73,9 +124,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    payload = json.loads(args.json_file.read_text(encoding="utf-8"))
+    payload: Any = json.loads(args.json_file.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise SystemExit("Input JSON must be an object of key->curl")
+        msg = "Input JSON must be an object of key->curl"
+        raise SystemExit(msg)
 
     rows: list[tuple[str, str, dict[str, int | str]]] = []
     for name, value in payload.items():
@@ -88,34 +140,10 @@ def main() -> None:
         rows.append((str(name), trama, decoded))
 
     if not rows:
-        raise SystemExit("No trama found in input JSON")
+        msg = "No trama found in input JSON"
+        raise SystemExit(msg)
 
-    starts = Counter(r[2]["start"] for r in rows)
-    middles = Counter(r[2]["fixed_middle"] for r in rows)
-    ends = Counter(r[2]["end"] for r in rows)
-
-    print("Detected pattern (from observed payloads):")
-    print("  trama = <start><0000><serial><fixed_middle><mode><speed><checksum><end>")
-    print(f"  start candidates: {dict(starts)}")
-    print(f"  fixed_middle candidates: {dict(middles)}")
-    print(f"  end candidates: {dict(ends)}")
-    print()
-
-    print("Decoded rows:")
-    for name, trama, d in rows:
-        mode = int(d["mode"])
-        speed = int(d["speed"])
-        mode_name = MODE_MAP.get(mode, "unknown")
-        speed_name = SPEED_MAP.get(speed, "unknown")
-        print(
-            f"- {name}: serial={d['serial']} mode=0x{mode:02X}({mode_name}) "
-            f"speed=0x{speed:02X}({speed_name}) checksum=0x{d['checksum']} trama={trama}"
-        )
-
-    print()
-    print("Mode byte map (observed):", {f"0x{k:02X}": v for k, v in MODE_MAP.items()})
-    print("Speed byte map (observed):", {f"0x{k:02X}": v for k, v in SPEED_MAP.items()})
-    print("Note: checksum changes with frame content and must be computed correctly by protocol rules.")
+    LOGGER.info(_build_summary(rows))
 
 
 if __name__ == "__main__":
