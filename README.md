@@ -1,46 +1,245 @@
-# Notice
+# Intelliclima Home Assistant integration
 
-The component and platforms in this repository are not meant to be used by a
-user, but as a "blueprint" that custom component developers can build
-upon, to make more awesome stuff.
+## About
 
-HAVE FUN! 😎
+This custom component connects Intelliclima cloud devices to Home Assistant.
 
-## Why?
+It provides config-flow setup, polls the Intelliclima API, and exposes entities for supported devices so you can monitor and control them from Home Assistant dashboards and automations.
 
-This is simple, by having custom_components look (README + structure) the same
-it is easier for developers to help each other and for users to start using them.
+Based on the current codebase, this integration includes:
 
-If you are a developer and you want to add things to this "blueprint" that you think more
-developers will have use for, please open a PR to add it :)
+- `climate` entities for C800WiFi devices
+- `fan` entities for ECOCOMFORT ventilation units
+- `select` entities for ECOCOMFORT ventilation mode and speed
+- `sensor` entities for ECOCOMFORT telemetry such as temperature, humidity, and VOC state
 
-## What?
+The integration is implemented as a cloud-polling custom component with UI configuration (username/password plus optional API URL/path overrides).
 
-This repository contains multiple files, here is a overview:
+## How to install
 
-File | Purpose | Documentation
--- | -- | --
-`.devcontainer.json` | Used for development/testing with Visual Studio Code. | [Documentation](https://code.visualstudio.com/docs/remote/containers)
-`.github/ISSUE_TEMPLATE/*.yml` | Templates for the issue tracker | [Documentation](https://help.github.com/en/github/building-a-strong-community/configuring-issue-templates-for-your-repository)
-`custom_components/integration_blueprint/*` | Integration files, this is where everything happens. | [Documentation](https://developers.home-assistant.io/docs/creating_component_index)
-`CONTRIBUTING.md` | Guidelines on how to contribute. | [Documentation](https://help.github.com/en/github/building-a-strong-community/setting-guidelines-for-repository-contributors)
-`LICENSE` | The license file for the project. | [Documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/licensing-a-repository)
-`README.md` | The file you are reading now, should contain info about the integration, installation and configuration instructions. | [Documentation](https://help.github.com/en/github/writing-on-github/basic-writing-and-formatting-syntax)
-`requirements.txt` | Python packages used for development/lint/testing this integration. | [Documentation](https://pip.pypa.io/en/stable/user_guide/#requirements-files)
+### HACS (recommended)
 
-## How?
+1. Make sure [HACS](https://hacs.xyz/) is installed in Home Assistant.
+2. Open **HACS → Integrations**.
+3. Click the three-dot menu (top-right) → **Custom repositories**.
+4. Add this repository URL:
+   - `https://github.com/JMaroz/intelliclima-hass-integration`
+5. Select category **Integration** and click **Add**.
+6. Search for **Intelliclima Home Assistant integration** in HACS and install it.
+7. Restart Home Assistant.
+8. Go to **Settings → Devices & Services → Add Integration**.
+9. Search for **Intelliclima** and complete the configuration form.
 
-1. Create a new repository in GitHub, using this repository as a template by clicking the "Use this template" button in the GitHub UI.
-1. Open your new repository in Visual Studio Code devcontainer (Preferably with the "`Dev Containers: Clone Repository in Named Container Volume...`" option).
-1. Rename all instances of the `integration_blueprint` to `custom_components/<your_integration_domain>` (e.g. `custom_components/awesome_integration`).
-1. Rename all instances of the `Integration Blueprint` to `<Your Integration Name>` (e.g. `Awesome Integration`).
-1. Run the `scripts/develop` to start HA and test out your new integration.
+### Manual installation
 
-## Next steps
+1. Copy `custom_components/intelliclima` into your Home Assistant config folder:
+   - `<HA_CONFIG>/custom_components/intelliclima`
+2. Restart Home Assistant.
+3. Go to **Settings → Devices & Services → Add Integration**.
+4. Search for **Intelliclima** and configure credentials.
 
-These are some next steps you may want to look into:
-- Add tests to your integration, [`pytest-homeassistant-custom-component`](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) can help you get started.
-- Add brand images (logo/icon) to https://github.com/home-assistant/brands.
-- Create your first release.
-- Share your integration on the [Home Assistant Forum](https://community.home-assistant.io/).
-- Submit your integration to [HACS](https://hacs.xyz/docs/publish/start).
+## Credits
+
+This repository is inspired by the Homebridge plugin [`ruizmarc/homebridge-intelliclima`](https://github.com/ruizmarc/homebridge-intelliclima), which helped document Intelliclima cloud endpoints and payload behavior.
+
+Main changes:
+
+- **Home Assistant native integration** instead of Homebridge accessory/platform plugin architecture
+- **Config flow + UI setup** in Home Assistant
+- **Entity model adapted to HA** (`climate`, `fan`, `select`, `sensor`) with polling-based updates
+- **ECOCOMFORT Fan with into dedicated controls** (fan power + separate mode/speed selects)
+  
+## Run in local development environment
+
+### 1) Clone and install dependencies
+
+```bash
+git clone <YOUR_REPOSITORY_URL>
+cd Intelliclima-hass-integration
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+> You can also use the helper script:
+>
+> ```bash
+> ./scripts/setup
+> ```
+
+### 2) Start Home Assistant with this custom component
+
+```bash
+source .venv/bin/activate
+./scripts/develop
+```
+
+This script:
+- creates `config/` if missing,
+- exposes this repository `custom_components` through `PYTHONPATH`,
+- starts Home Assistant in debug mode.
+
+### 3) Open Home Assistant UI
+
+Once Home Assistant is running, open:
+- `http://localhost:8123`
+
+Finish onboarding/login, then add the integration.
+
+### 4) Add the component in Home Assistant (local dev runtime)
+
+If you run Home Assistant from this repository with `./scripts/develop`:
+
+1. In Home Assistant UI go to **Settings → Devices & Services**.
+2. Click **Add Integration**.
+3. Search for **Intelliclima**.
+4. Enter:
+   - **Username**
+   - **Password**
+
+### Features
+
+- Config flow with username/password
+- Configurable API base URL and API folder path
+- Climate entities for C800WiFi devices
+- ECOCOMFORT fan entities (state/speed from `cronos400`)
+- ECOCOMFORT sensors (temperature `tamb`, humidity `rh`, VOC `voc_state`)
+- C800WiFi write support for setpoint/mode
+  
+### Implemented API
+
+The integration uses the Intelliclima API request model based on observed endpoints and payloads:
+
+1. `user/login/{username}/{sha256(password)}` with a device-info JSON body
+2. `casa/elenco2/{userId}` to obtain houses and device IDs (with `Tokenid`/`Token` headers)
+3. `sync/cronos380` for `IDs` to fetch device details
+4. `sync/cronos400` for ECOCOMFORT data (`ECOs` populated from `ecoIDs`)
+5. `C800/scrivi/` for write operations (`serial`, `w_Tset_Tman`, `mode`) for `C800WiFi`
+6. `eco/send/` for write operations (`mode`, `speed`) for ECOCOMFORT
+
+#### Manual API testing (without Home Assistant)
+
+You can test the Intelliclima API directly with:
+
+```bash
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> login
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> devices
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> device --device-id <ID>
+python scripts/intelliclima_api_tester.py --username <USER> --password <PASS> set --device-id <ID> --temperature 21.5 --mode heat
+```
+
+Optional flags:
+- `--base-url` (default: `https://intelliclima.fantinicosmi.it`)
+- `--api-folder` (default: `/server_v1_mono/api/`)
+- `devices --raw` to print complete payloads
+
+Known API folders:
+- `/server_v1_mono/api/`
+- `/server_v1_multi/api/`
+
+## ECOCOMFORT fan behavior (mode + speed mapping)
+
+The ECO devices expose **two independent dimensions** in API payloads:
+
+- **Speed** (`speed_set`, `speed_state`)
+- **Ventilation mode** (`mode_set`, `mode_state`)
+
+### Speed mapping used by this integration
+
+Observed native states:
+
+| API value | Meaning |
+|---|---|
+| `0` | Off |
+| `1` | Sleep |
+| `2` | Vel1 |
+| `3` | Vel2 |
+| `4` | Vel3 |
+
+Some schedule/auto payloads may report translated values `16..19`; these are normalized to native levels `1..4` for Home Assistant state rendering.
+
+In Home Assistant:
+- `is_on` is `true` when normalized speed is `> 0`
+- `percentage` is computed from normalized level over max level `4`
+
+### Ventilation mode mapping used by this integration
+
+| API value (`mode_set`/`mode_state`) | Preset |
+|---|---|
+| `1` | `outdoor_intake` |
+| `2` | `indoor_exhaust` |
+| `3` | `alternating_45s` |
+| `4` | `alternating_sensor` |
+| `132` | `alternating_sensor` |
+
+`132` is treated as a runtime state variant of sensor-driven alternating mode.
+
+### ECO `trama` body pattern for write operation
+
+For `eco/send/` requests, the body payload follows this frame layout:
+
+```text
+trama = 0A 0000 SSSS 000E2F0050 0000 MM SS CC 0D
+```
+
+Where:
+- `SSSS` = 4-digit device serial (example: `0675`, `0674`)
+- `MM` = mode byte (`01` outdoor intake, `02` indoor exhaust, `03` alternating 45s, `04` alternating sensor, `00` off)
+- `SS` = speed byte (`01` sleep, `02` vel1, `03` vel2, `04` vel3, `10` auto, `00` off)
+- `CC` = checksum byte (varies with full frame content)
+
+You can analyze your own captured curl JSON with:
+
+```bash
+python scripts/eco_trama_pattern.py path/to/captured_curls.json
+```
+
+### Exposed diagnostic attributes
+
+For ECO fan entities, the integration exposes additional state attributes:
+
+- raw: `mode_set`, `mode_state`, `speed_set`, `speed_state`
+- normalized: `speed_level`, `ventilation_mode`
+
+These attributes are useful when creating automations and when comparing HA state with vendor app behavior.
+
+### ECO control from Home Assistant UI
+
+ECO controls are now exposed with a cleaner frontend UX:
+
+- **Fan entity**: on/off only
+- **Ventilation Mode**: dedicated `select` entity (dropdown)
+- **Ventilation Speed**: dedicated `select` entity (dropdown with `off`, `sleep`, `vel1`, `vel2`, `vel3`, `auto`)
+
+Under the hood the integration builds and sends `eco/send/` payloads with this frame format:
+
+```json
+{"trama":"0A0000SSSS000E2F00500000MMSSCC0D"}
+```
+
+Where `SSSS` is serial, `MM` is mode byte, `SS` is speed byte, and `CC` is CRC-8 checksum.
+
+Write responses are validated against the vendor echo payload (example: `{"status":"OK","serial":"00000674","trama":"0A00000674000E2F005000000410B20D"}`), so mismatched `serial`/`trama` now raise an integration error instead of silently succeeding.
+
+## Enable Intelliclima debug logs
+
+In your `configuration.yaml`:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.intelliclima: debug
+```
+
+Then restart Home Assistant.
+
+
+### Deep API debug (cURL + raw response)
+
+When `custom_components.intelliclima: debug` is enabled, the integration now logs:
+- a cURL-equivalent command for each API request
+- raw HTTP response status and body
+- parsed raw payloads for login, house list, and device fetch
+
+> ⚠️ These logs can contain sensitive values (token, serial, device/account data). Use only for troubleshooting and disable debug logs afterwards.
